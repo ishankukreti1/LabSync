@@ -6,6 +6,6 @@ class LabSyncService {
 public:
     explicit LabSyncService(Database& d):db(d){}
     void registerStudent(); void addExam(); void addSlot(); void addLab(); void addComputer();
-    void listStudents(); void listExams(); void listSlots(); void bookSlot(); void myBookings(); void cancelBooking();
+    void listStudents(); void listExams(); void listSlots(); void listLabs(); void bookSlot(); void myBookings(); void cancelBooking();
     void listBookings(); void runScheduler(); void computerAvailability(); void completeSession();
 };

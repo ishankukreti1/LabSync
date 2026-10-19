@@ -1,5 +1,6 @@
-
 #include "LabSyncService.h"
+#include "Scheduler.h"
+#include "DeadlockPrevention.h"
 
 #include <iostream>
 #include <iomanip>
@@ -12,6 +13,17 @@ using namespace std;
 
 static void nl() {
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
+}
+
+static bool readInt(const string& prompt, int& val) {
+    cout << prompt;
+    while (!(cin >> val)) {
+        if (cin.eof()) return false;
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Invalid input. Please enter a valid number: ";
+    }
+    return true;
 }
 
 static string priorityName(int p) {
@@ -27,12 +39,24 @@ void LabSyncService::registerStudent() {
 
     cout << "Name: ";
     getline(cin, name);
+    if (name.empty()) {
+        cout << "Name cannot be empty.\n";
+        return;
+    }
 
     cout << "Email: ";
     getline(cin, email);
+    if (email.empty()) {
+        cout << "Email cannot be empty.\n";
+        return;
+    }
 
     cout << "Password: ";
     getline(cin, password);
+    if (password.empty()) {
+        cout << "Password cannot be empty.\n";
+        return;
+    }
 
     try {
         auto ps = unique_ptr<sql::PreparedStatement>(
@@ -56,11 +80,15 @@ void LabSyncService::registerStudent() {
 
         rs->next();
 
-        cout << "Registered. Student ID: "
+        cout << "\nRegistered successfully! Student ID: "
              << rs->getInt("id") << "\n";
 
     } catch (sql::SQLException& e) {
-        cout << "Registration failed: " << e.what() << "\n";
+        if (e.getErrorCode() == 1062) {
+            cout << "Registration failed: An account with email '" << email << "' already exists.\n";
+        } else {
+            cout << "Registration failed: " << e.what() << "\n";
+        }
     }
 }
 
@@ -70,22 +98,33 @@ void LabSyncService::addExam() {
     nl();
 
     string name, code, date;
-    int pr;
+    int pr = 0;
 
     cout << "Exam name: ";
     getline(cin, name);
+    if (name.empty()) {
+        cout << "Exam name cannot be empty.\n";
+        return;
+    }
 
     cout << "Subject code: ";
     getline(cin, code);
+    if (code.empty()) {
+        cout << "Subject code cannot be empty.\n";
+        return;
+    }
 
     cout << "Exam date (YYYY-MM-DD): ";
     getline(cin, date);
+    if (date.empty()) {
+        cout << "Exam date cannot be empty.\n";
+        return;
+    }
 
-    cout << "Priority (1 High, 2 Normal, 3 Low): ";
-    cin >> pr;
+    if (!readInt("Priority (1 High, 2 Normal, 3 Low): ", pr)) return;
 
     if (pr < 1 || pr > 3) {
-        cout << "Invalid priority.\n";
+        cout << "Invalid priority. Must be 1, 2, or 3.\n";
         return;
     }
 
@@ -104,10 +143,10 @@ void LabSyncService::addExam() {
 
         ps->executeUpdate();
 
-        cout << "Exam added.\n";
+        cout << "\nExam added successfully.\n";
 
     } catch (sql::SQLException& e) {
-        cout << e.what() << "\n";
+        cout << "Failed to add exam: " << e.what() << "\n";
     }
 }
 
@@ -127,13 +166,17 @@ void LabSyncService::listExams() {
         );
 
         cout << "\nID | Exam | Code | Date | Priority\n";
-
+        bool found = false;
         while (r->next()) {
+            found = true;
             cout << r->getInt(1) << " | "
                  << r->getString(2) << " | "
                  << r->getString(3) << " | "
                  << r->getString(4) << " | "
                  << priorityName(r->getInt(5)) << "\n";
+        }
+        if (!found) {
+            cout << "No exams found.\n";
         }
 
     } catch (sql::SQLException& e) {
@@ -146,11 +189,10 @@ void LabSyncService::listExams() {
 void LabSyncService::addSlot() {
     listExams();
 
-    int exam, cap;
+    int exam = 0, cap = 0;
     string start, end;
 
-    cout << "Exam ID: ";
-    cin >> exam;
+    if (!readInt("Exam ID: ", exam)) return;
 
     cout << "Start (HH:MM:SS): ";
     cin >> start;
@@ -158,8 +200,12 @@ void LabSyncService::addSlot() {
     cout << "End (HH:MM:SS): ";
     cin >> end;
 
-    cout << "Capacity: ";
-    cin >> cap;
+    if (!readInt("Capacity: ", cap)) return;
+
+    if (cap <= 0) {
+        cout << "Capacity must be greater than 0.\n";
+        return;
+    }
 
     try {
         auto ps = unique_ptr<sql::PreparedStatement>(
@@ -176,10 +222,10 @@ void LabSyncService::addSlot() {
 
         ps->executeUpdate();
 
-        cout << "Slot added.\n";
+        cout << "\nSlot added successfully.\n";
 
     } catch (sql::SQLException& e) {
-        cout << e.what() << "\n";
+        cout << "Failed to add slot: " << e.what() << "\n";
     }
 }
 
@@ -201,13 +247,17 @@ void LabSyncService::listSlots() {
         );
 
         cout << "\nSlot | Exam | Time | Capacity\n";
-
+        bool found = false;
         while (r->next()) {
+            found = true;
             cout << r->getInt(1) << " | "
                  << r->getString(2) << " | "
                  << r->getString(3) << "-"
                  << r->getString(4) << " | "
                  << r->getInt(5) << "\n";
+        }
+        if (!found) {
+            cout << "No slots found.\n";
         }
 
     } catch (sql::SQLException& e) {
@@ -221,13 +271,21 @@ void LabSyncService::addLab() {
     nl();
 
     string name;
-    int cap;
+    int cap = 0;
 
     cout << "Lab name: ";
     getline(cin, name);
+    if (name.empty()) {
+        cout << "Lab name cannot be empty.\n";
+        return;
+    }
 
-    cout << "Capacity: ";
-    cin >> cap;
+    if (!readInt("Capacity: ", cap)) return;
+
+    if (cap <= 0) {
+        cout << "Capacity must be greater than 0.\n";
+        return;
+    }
 
     try {
         auto ps = unique_ptr<sql::PreparedStatement>(
@@ -241,35 +299,74 @@ void LabSyncService::addLab() {
 
         ps->executeUpdate();
 
-        cout << "Lab added.\n";
+        auto idQuery = unique_ptr<sql::Statement>(db.get()->createStatement());
+        auto idRes = unique_ptr<sql::ResultSet>(idQuery->executeQuery("SELECT LAST_INSERT_ID()"));
+        if (idRes->next()) {
+            cout << "\nLab '" << name << "' added successfully! Lab ID: " << idRes->getInt(1)
+                 << " (Capacity: " << cap << ").\n";
+        } else {
+            cout << "\nLab added successfully.\n";
+        }
 
     } catch (sql::SQLException& e) {
-        cout << e.what() << "\n";
+        cout << "Failed to add lab: " << e.what() << "\n";
+    }
+}
+
+// ==================== LIST LABS ====================
+
+void LabSyncService::listLabs() {
+    try {
+        auto st = unique_ptr<sql::Statement>(
+            db.get()->createStatement()
+        );
+
+        auto r = unique_ptr<sql::ResultSet>(
+            st->executeQuery(
+                "SELECT l.lab_id, l.lab_name, l.capacity, "
+                "COUNT(c.computer_id) AS registered_pcs "
+                "FROM labs l "
+                "LEFT JOIN computers c ON c.lab_id = l.lab_id "
+                "GROUP BY l.lab_id, l.lab_name, l.capacity "
+                "ORDER BY l.lab_id"
+            )
+        );
+
+        cout << "\n===== REGISTERED LABS =====\n";
+        cout << left << setw(8) << "Lab ID" << " | "
+             << setw(20) << "Lab Name" << " | "
+             << setw(10) << "Capacity" << " | "
+             << "PCs Registered\n";
+        cout << "---------------------------------------------------------\n";
+
+        bool found = false;
+        while (r->next()) {
+            found = true;
+            cout << left << setw(8) << r->getInt(1) << " | "
+                 << setw(20) << r->getString(2) << " | "
+                 << setw(10) << r->getInt(3) << " | "
+                 << r->getInt(4) << "\n";
+        }
+
+        if (!found) {
+            cout << "No labs created yet. Please add a lab first.\n";
+        }
+    } catch (sql::SQLException& e) {
+        cout << "Error listing labs: " << e.what() << "\n";
     }
 }
 
 // ==================== BULK ADD COMPUTERS ====================
 
 void LabSyncService::addComputer() {
-    int lab, quantity;
+    listLabs();
+
+    int lab = 0, quantity = 0;
 
     cout << "\n===== BULK COMPUTER REGISTRATION =====\n";
 
-    cout << "Lab ID: ";
-    if (!(cin >> lab)) {
-        cin.clear();
-        nl();
-        cout << "Invalid Lab ID.\n";
-        return;
-    }
-
-    cout << "Number of computers to add: ";
-    if (!(cin >> quantity)) {
-        cin.clear();
-        nl();
-        cout << "Invalid quantity.\n";
-        return;
-    }
+    if (!readInt("Enter Lab ID: ", lab)) return;
+    if (!readInt("Number of computers to add: ", quantity)) return;
 
     if (lab <= 0 || quantity <= 0 || quantity > 1000) {
         cout << "Quantity must be between 1 and 1000.\n";
@@ -392,10 +489,16 @@ void LabSyncService::listStudents() {
             )
         );
 
+        cout << "\nID | Name | Email\n";
+        bool found = false;
         while (r->next()) {
+            found = true;
             cout << r->getInt(1) << " | "
                  << r->getString(2) << " | "
                  << r->getString(3) << "\n";
+        }
+        if (!found) {
+            cout << "No students registered.\n";
         }
 
     } catch (sql::SQLException& e) {
@@ -406,21 +509,81 @@ void LabSyncService::listStudents() {
 // ==================== BOOK SLOT ====================
 
 void LabSyncService::bookSlot() {
-    int sid, slot;
+    int sid = 0, slot = 0;
 
     listExams();
     listSlots();
 
-    cout << "Student ID: ";
-    cin >> sid;
+    if (!readInt("Student ID: ", sid)) return;
+    if (!readInt("Slot ID: ", slot)) return;
 
-    cout << "Slot ID: ";
-    cin >> slot;
+    if (sid <= 0 || slot <= 0) {
+        cout << "Invalid Student ID or Slot ID.\n";
+        return;
+    }
 
     try {
+        // Verify student exists
+        auto studentCheck = unique_ptr<sql::PreparedStatement>(
+            db.get()->prepareStatement("SELECT student_id FROM students WHERE student_id=?")
+        );
+        studentCheck->setInt(1, sid);
+        auto sRes = unique_ptr<sql::ResultSet>(studentCheck->executeQuery());
+        if (!sRes->next()) {
+            cout << "\nStudent ID " << sid << " not found. Please register first.\n";
+            return;
+        }
+
+        // Find the exam associated with the selected slot.
+        auto examQuery = unique_ptr<sql::PreparedStatement>(
+            db.get()->prepareStatement(
+                "SELECT exam_id FROM slots WHERE slot_id=?"
+            )
+        );
+
+        examQuery->setInt(1, slot);
+
+        auto examResult = unique_ptr<sql::ResultSet>(
+            examQuery->executeQuery()
+        );
+
+        if (!examResult->next()) {
+            cout << "\nInvalid slot ID.\n";
+            return;
+        }
+
+        int examId = examResult->getInt(1);
+
+        // Check if this student already booked this exam.
+        auto check = unique_ptr<sql::PreparedStatement>(
+            db.get()->prepareStatement(
+                "SELECT status FROM requests "
+                "WHERE student_id=? AND exam_id=? "
+                "AND status <> 'CANCELLED' "
+                "LIMIT 1"
+            )
+        );
+
+        check->setInt(1, sid);
+        check->setInt(2, examId);
+
+        auto result = unique_ptr<sql::ResultSet>(
+            check->executeQuery()
+        );
+
+        if (result->next()) {
+            cout << "\nBooking rejected!\n";
+            cout << "You have already booked this exam.\n";
+            cout << "Existing status: "
+                 << result->getString(1) << "\n";
+            return;
+        }
+
+        // No duplicate found, proceed with booking.
         auto ps = unique_ptr<sql::PreparedStatement>(
             db.get()->prepareStatement(
-                "INSERT INTO requests(student_id,exam_id,slot_id,priority) "
+                "INSERT INTO requests"
+                "(student_id,exam_id,slot_id,priority) "
                 "SELECT ?,s.exam_id,s.slot_id,e.priority "
                 "FROM slots s "
                 "JOIN exams e ON e.exam_id=s.exam_id "
@@ -434,12 +597,12 @@ void LabSyncService::bookSlot() {
         int n = ps->executeUpdate();
 
         if (!n) {
-            cout << "Invalid slot.\n";
+            cout << "\nFailed to create booking for slot " << slot << ".\n";
             return;
         }
 
-        cout << "Booking request saved in MySQL.\n";
-        cout << "Status READY; priority inherited from exam.\n";
+        cout << "\nBooking successful!\n";
+        cout << "Status: READY (Queued for allocation)\n";
 
     } catch (sql::SQLException& e) {
         cout << "Booking failed: " << e.what() << "\n";
@@ -449,10 +612,9 @@ void LabSyncService::bookSlot() {
 // ==================== MY BOOKINGS ====================
 
 void LabSyncService::myBookings() {
-    int sid;
+    int sid = 0;
 
-    cout << "Student ID: ";
-    cin >> sid;
+    if (!readInt("Student ID: ", sid)) return;
 
     try {
         auto ps = unique_ptr<sql::PreparedStatement>(
@@ -477,7 +639,10 @@ void LabSyncService::myBookings() {
             ps->executeQuery()
         );
 
+        cout << "\nRID | Exam | Slot Time | Priority | Status | Lab | PC\n";
+        bool found = false;
         while (r->next()) {
+            found = true;
             cout << "R" << r->getInt(1) << " | "
                  << r->getString(2) << " | "
                  << r->getString(3) << "-"
@@ -489,6 +654,9 @@ void LabSyncService::myBookings() {
                  << (r->isNull(8) ? "--" : r->getString(8))
                  << "\n";
         }
+        if (!found) {
+            cout << "No bookings found for Student ID " << sid << ".\n";
+        }
 
     } catch (sql::SQLException& e) {
         cout << e.what() << "\n";
@@ -498,10 +666,14 @@ void LabSyncService::myBookings() {
 // ==================== CANCEL BOOKING ====================
 
 void LabSyncService::cancelBooking() {
-    int rid;
+    int rid = 0;
 
-    cout << "Request ID: ";
-    cin >> rid;
+    if (!readInt("Request ID: ", rid)) return;
+
+    if (rid <= 0) {
+        cout << "Invalid Request ID.\n";
+        return;
+    }
 
     try {
         db.get()->setAutoCommit(false);
@@ -530,13 +702,13 @@ void LabSyncService::cancelBooking() {
         db.get()->commit();
         db.get()->setAutoCommit(true);
 
-        cout << (n ? "Booking cancelled.\n"
-                   : "Nothing cancellable found.\n");
+        cout << (n ? "\nBooking cancelled successfully.\n"
+                   : "\nNo cancellable booking found for this Request ID.\n");
 
     } catch (sql::SQLException& e) {
         db.get()->rollback();
         db.get()->setAutoCommit(true);
-        cout << e.what() << "\n";
+        cout << "Cancellation failed: " << e.what() << "\n";
     }
 }
 
@@ -566,8 +738,9 @@ void LabSyncService::listBookings() {
         );
 
         cout << "\nRID | Student | Exam | Slot | P | Status | Lab | PC\n";
-
+        bool found = false;
         while (r->next()) {
+            found = true;
             cout << r->getInt(1) << " | "
                  << r->getString(2) << " | "
                  << r->getString(3) << " | "
@@ -580,6 +753,9 @@ void LabSyncService::listBookings() {
                  << (r->isNull(10) ? "--" : r->getString(10))
                  << "\n";
         }
+        if (!found) {
+            cout << "No bookings recorded.\n";
+        }
 
     } catch (sql::SQLException& e) {
         cout << e.what() << "\n";
@@ -588,194 +764,32 @@ void LabSyncService::listBookings() {
 
 // ==================== PRIORITY + FCFS SCHEDULER ====================
 
-void LabSyncService::runScheduler() {
-    try {
-        auto q = unique_ptr<sql::Statement>(
-            db.get()->createStatement()
-        );
-
-        auto rr = unique_ptr<sql::ResultSet>(
-            q->executeQuery(
-                "SELECT request_id FROM requests "
-                "WHERE status IN ('READY','WAITING') "
-                "ORDER BY priority ASC,request_time ASC"
-            )
-        );
-
-        vector<int> ids;
-
-        while (rr->next()) {
-            ids.push_back(rr->getInt(1));
-        }
-
-        for (int rid : ids) {
-            try {
-                db.get()->setAutoCommit(false);
-
-                auto lock = unique_ptr<sql::PreparedStatement>(
-                    db.get()->prepareStatement(
-                        "SELECT r.slot_id,s.capacity "
-                        "FROM requests r "
-                        "JOIN slots s ON s.slot_id=r.slot_id "
-                        "WHERE r.request_id=? "
-                        "AND r.status IN ('READY','WAITING') "
-                        "FOR UPDATE"
-                    )
-                );
-
-                lock->setInt(1, rid);
-
-                auto lr = unique_ptr<sql::ResultSet>(
-                    lock->executeQuery()
-                );
-
-                if (!lr->next()) {
-                    db.get()->rollback();
-                    db.get()->setAutoCommit(true);
-                    continue;
-                }
-
-                int slot = lr->getInt(1);
-                int cap = lr->getInt(2);
-
-                auto count = unique_ptr<sql::PreparedStatement>(
-                    db.get()->prepareStatement(
-                        "SELECT COUNT(*) n FROM allocations "
-                        "WHERE slot_id=? AND status='ALLOCATED'"
-                    )
-                );
-
-                count->setInt(1, slot);
-
-                auto cr = unique_ptr<sql::ResultSet>(
-                    count->executeQuery()
-                );
-
-                cr->next();
-
-                if (cr->getInt(1) >= cap) {
-                    auto w = unique_ptr<sql::PreparedStatement>(
-                        db.get()->prepareStatement(
-                            "UPDATE requests SET status='WAITING' "
-                            "WHERE request_id=?"
-                        )
-                    );
-
-                    w->setInt(1, rid);
-                    w->executeUpdate();
-
-                    db.get()->commit();
-                    db.get()->setAutoCommit(true);
-                    continue;
-                }
-
-                auto pc = unique_ptr<sql::PreparedStatement>(
-                    db.get()->prepareStatement(
-                        "SELECT c.computer_id FROM computers c "
-                        "WHERE c.state='ACTIVE' "
-                        "AND NOT EXISTS("
-                        "SELECT 1 FROM allocations a "
-                        "WHERE a.computer_id=c.computer_id "
-                        "AND a.slot_id=? "
-                        "AND a.status='ALLOCATED') "
-                        "ORDER BY c.lab_id,c.computer_id "
-                        "LIMIT 1 FOR UPDATE"
-                    )
-                );
-
-                pc->setInt(1, slot);
-
-                auto pr = unique_ptr<sql::ResultSet>(
-                    pc->executeQuery()
-                );
-
-                if (!pr->next()) {
-                    auto w = unique_ptr<sql::PreparedStatement>(
-                        db.get()->prepareStatement(
-                            "UPDATE requests SET status='WAITING' "
-                            "WHERE request_id=?"
-                        )
-                    );
-
-                    w->setInt(1, rid);
-                    w->executeUpdate();
-
-                    db.get()->commit();
-                    db.get()->setAutoCommit(true);
-                    continue;
-                }
-
-                int cid = pr->getInt(1);
-
-                auto ins = unique_ptr<sql::PreparedStatement>(
-                    db.get()->prepareStatement(
-                        "INSERT INTO allocations("
-                        "request_id,slot_id,computer_id,status) "
-                        "VALUES(?,?,?,'ALLOCATED')"
-                    )
-                );
-
-                ins->setInt(1, rid);
-                ins->setInt(2, slot);
-                ins->setInt(3, cid);
-                ins->executeUpdate();
-
-                auto u = unique_ptr<sql::PreparedStatement>(
-                    db.get()->prepareStatement(
-                        "UPDATE requests SET status='ALLOCATED' "
-                        "WHERE request_id=?"
-                    )
-                );
-
-                u->setInt(1, rid);
-                u->executeUpdate();
-
-                db.get()->commit();
-                db.get()->setAutoCommit(true);
-
-                cout << "Request " << rid
-                     << " allocated to computer " << cid << ".\n";
-
-            } catch (sql::SQLException& e) {
-                db.get()->rollback();
-                db.get()->setAutoCommit(true);
-
-                cout << "Request " << rid
-                     << " rolled back: " << e.what() << "\n";
-            }
-        }
-
-    } catch (sql::SQLException& e) {
-        cout << e.what() << "\n";
-    }
-}
-
 // ==================== COMPUTER AVAILABILITY ====================
 
 void LabSyncService::computerAvailability() {
-    int slot;
+    int slot = 0;
 
     listSlots();
 
-    cout << "Slot ID: ";
-    cin >> slot;
+    if (!readInt("Slot ID: ", slot)) return;
 
     try {
         auto ps = unique_ptr<sql::PreparedStatement>(
             db.get()->prepareStatement(
-                "SELECT l.lab_name,c.computer_no,c.state,"
+                "SELECT l.lab_name, c.computer_no, c.state, "
                 "CASE "
                 "WHEN c.state='MAINTENANCE' THEN 'MAINTENANCE' "
-                "WHEN EXISTS("
-                "SELECT 1 FROM allocations a "
-                "WHERE a.computer_id=c.computer_id "
-                "AND a.slot_id=? "
-                "AND a.status='ALLOCATED') "
-                "THEN 'OCCUPIED' "
-                "ELSE 'AVAILABLE' END availability "
+                "WHEN a.status='ALLOCATED' THEN 'OCCUPIED' "
+                "ELSE 'AVAILABLE' END AS availability, "
+                "st.name AS student_name, "
+                "r.request_id "
                 "FROM computers c "
                 "JOIN labs l ON l.lab_id=c.lab_id "
-                "ORDER BY l.lab_id,c.computer_id"
+                "LEFT JOIN allocations a ON a.computer_id=c.computer_id "
+                "AND a.slot_id=? AND a.status='ALLOCATED' "
+                "LEFT JOIN requests r ON r.request_id=a.request_id "
+                "LEFT JOIN students st ON st.student_id=r.student_id "
+                "ORDER BY l.lab_id, c.computer_id"
             )
         );
 
@@ -785,10 +799,32 @@ void LabSyncService::computerAvailability() {
             ps->executeQuery()
         );
 
+        cout << "\n"
+             << left << setw(20) << "Lab Name" << " | "
+             << setw(12) << "Computer" << " | "
+             << setw(12) << "Status" << " | "
+             << "Assigned Student\n";
+        cout << "---------------------------------------------------------------------------\n";
+
+        bool found = false;
         while (r->next()) {
-            cout << r->getString(1) << " | "
-                 << r->getString(2) << " | "
-                 << r->getString(4) << "\n";
+            found = true;
+            string labName = r->getString("lab_name");
+            string pcNo = r->getString("computer_no");
+            string status = r->getString("availability");
+            string assigned = "--";
+
+            if (status == "OCCUPIED" && !r->isNull("student_name")) {
+                assigned = r->getString("student_name") + " (Request #" + to_string(r->getInt("request_id")) + ")";
+            }
+
+            cout << left << setw(20) << labName << " | "
+                 << setw(12) << pcNo << " | "
+                 << setw(12) << status << " | "
+                 << assigned << "\n";
+        }
+        if (!found) {
+            cout << "No computers found for this slot.\n";
         }
 
     } catch (sql::SQLException& e) {
@@ -799,10 +835,9 @@ void LabSyncService::computerAvailability() {
 // ==================== COMPLETE SESSION ====================
 
 void LabSyncService::completeSession() {
-    int rid;
+    int rid = 0;
 
-    cout << "Request ID: ";
-    cin >> rid;
+    if (!readInt("Request ID: ", rid)) return;
 
     try {
         db.get()->setAutoCommit(false);
@@ -830,8 +865,8 @@ void LabSyncService::completeSession() {
         db.get()->commit();
         db.get()->setAutoCommit(true);
 
-        cout << (n ? "Session completed.\n"
-                   : "Allocated request not found.\n");
+        cout << (n ? "\nSession completed successfully.\n"
+                   : "\nAllocated request not found or not in ALLOCATED state.\n");
 
     } catch (sql::SQLException& e) {
         db.get()->rollback();

@@ -1,0 +1,55 @@
+
+{% extends "base.html" %}
+{% block title %}Create Account - LabSync{% endblock %}
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <div class="auth-header">
+            <span class="auth-avatar"><img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""></span>
+            <h2 class="auth-title">Join LabSync</h2>
+            <p class="auth-subtitle">Create your account in under 30 seconds</p>
+        </div>
+
+        <!-- Role Toggle Tabs -->
+        <div class="role-tabs">
+            <a href="{{ url_for('register', role='student') }}" class="role-tab {% if role == 'student' %}active{% endif %}">
+                <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""> New Student
+            </a>
+            <a href="{{ url_for('register', role='admin') }}" class="role-tab {% if role == 'admin' %}active{% endif %}">
+                <img class="ui-icon" src="{{ url_for('static', filename='icons/admin.svg') }}" alt=""> New Admin
+            </a>
+        </div>
+
+        <!-- Registration Form -->
+        <form method="POST" action="{{ url_for('register') }}" class="auth-form">
+            <input type="hidden" name="role" value="{{ role }}">
+            <div class="form-group">
+                <label for="name" class="form-label">Full Name</label>
+                <input type="text" id="name" name="name" class="form-input" placeholder="e.g. Alex Johnson" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="email" class="form-label">Email Address</label>
+                <input type="email" id="email" name="email" class="form-input" placeholder="alex@campus.edu" required>
+            </div>
+            <div class="form-group">
+                <label for="password" class="form-label">Create Password</label>
+                <input type="password" id="password" name="password" class="form-input" placeholder="Choose a strong password" required minlength="4">
+            </div>
+            <div class="form-group">
+                <label for="confirm_password" class="form-label">Confirm Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-input" placeholder="Re-type your password" required minlength="4">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block btn-lg">
+                Create {{ 'Admin' if role == 'admin' else 'Student' }} Account &rarr;
+            </button>
+        </form>
+
+        <!-- Login Link -->
+        <div class="auth-footer">
+            <p>Already have an account?
+                <a href="{{ url_for('login', role=role) }}" class="link-bold">Sign in here</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

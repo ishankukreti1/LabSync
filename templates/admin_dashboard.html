@@ -1,0 +1,460 @@
+
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - LabSync{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <div class="greeting-box">
+        <span class="greeting-icon"><img class="ui-icon" src="{{ url_for('static', filename='icons/admin.svg') }}" alt=""></span>
+        <div>
+            <h1 class="greeting-title">Administrator Command Center</h1>
+            <p class="greeting-subtitle">Manage exams, computer labs, run the Priority-FCFS scheduler & monitor desk allocations</p>
+        </div>
+    </div>
+    <div class="header-actions">
+        <form method="POST" action="{{ url_for('trigger_scheduler') }}" class="inline-form">
+            <button type="submit" class="btn btn-emerald btn-lg pulse-glow">
+                <img class="ui-icon" src="{{ url_for('static', filename='icons/scheduler.svg') }}" alt=""> Run Scheduler Now
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Stats Counter Grid -->
+<div class="stats-grid mb-5">
+    <div class="stat-card">
+        <div class="stat-icon bg-amber"><img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""></div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.students }}</span>
+            <span class="stat-label">Students</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon bg-emerald"><img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt=""></div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.exams }}</span>
+            <span class="stat-label">Exams</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon bg-sky"><img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt=""></div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.labs }}</span>
+            <span class="stat-label">Labs</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon bg-rose"><img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""></div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.computers }}</span>
+            <span class="stat-label">Total PCs</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon bg-orange"><img class="ui-icon" src="{{ url_for('static', filename='icons/pending.svg') }}" alt=""></div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.pending }}</span>
+            <span class="stat-label">Pending Queue</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon bg-purple"><img class="ui-icon" src="{{ url_for('static', filename='icons/allocated.svg') }}" alt=""></div>
+        <div class="stat-info">
+            <span class="stat-number">{{ stats.allocated }}</span>
+            <span class="stat-label">Active Desks</span>
+        </div>
+    </div>
+</div>
+
+<!-- Visual PC Desk Availability Grid -->
+<section class="dashboard-section mb-5">
+    <div class="section-header-row">
+        <div>
+            <h2 class="section-title"><img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""> Live PC Availability Matrix</h2>
+            <p class="section-subtitle">Real-time status of computer stations. Select a slot to inspect who is occupying which desk.</p>
+        </div>
+        <div class="slot-filter-wrap">
+            <label for="slotSelect" class="text-sm font-semibold">Select Slot:</label>
+            <select id="slotSelect" class="form-select-sm" onchange="loadPcAvailability(this.value)">
+                {% for s in slots %}
+                    <option value="{{ s.slot_id }}">{{ s.exam_name }} ({{ s.start_time }}-{{ s.end_time }})</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="matrix-legend">
+        <span class="legend-item"><span class="legend-dot dot-available"></span> Free & Available</span>
+        <span class="legend-item"><span class="legend-dot dot-occupied"></span> Occupied (Allocated)</span>
+        <span class="legend-item"><span class="legend-dot dot-maintenance"></span> Maintenance</span>
+    </div>
+    <div id="pcGridContainer" class="pc-matrix-grid">
+        <div class="loading-state">Loading computer stations...</div>
+    </div>
+</section>
+
+<!-- Management Tabs -->
+<div class="tab-container mb-5">
+    <div class="tab-headers">
+        <button class="tab-btn active" onclick="switchTab(event, 'tab-bookings')"><img class="ui-icon" src="{{ url_for('static', filename='icons/booking.svg') }}" alt=""> All Bookings ({{ bookings|length }})</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-students')"><img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""> Registered Students ({{ students|length }})</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-exams')"><img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt=""> Exams & Slots</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-labs')"><img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt=""> Labs & Computers</button>
+    </div>
+
+    <!-- TAB 1: ALL BOOKINGS -->
+    <div id="tab-bookings" class="tab-pane active">
+        <div class="table-container">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Req ID</th>
+                        <th>Student</th>
+                        <th>Exam & Subject</th>
+                        <th>Slot Time</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Allocated Desk</th>
+                        <th>Session Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in bookings %}
+                    <tr>
+                        <td><strong>#{{ b.request_id }}</strong></td>
+                        <td>
+                            <strong>{{ b.student_name }}</strong>
+                            <span class="text-muted block text-sm">{{ b.student_email }}</span>
+                        </td>
+                        <td>
+                            {{ b.exam_name }}
+                            <span class="text-muted block text-sm">{{ b.subject_code }}</span>
+                        </td>
+                        <td>{{ b.start_time }} - {{ b.end_time }}</td>
+                        <td>
+                            {% if b.priority == 1 %}<span class="badge badge-rose">High (1)</span>
+                            {% elif b.priority == 2 %}<span class="badge badge-warning">Normal (2)</span>
+                            {% else %}<span class="badge badge-neutral">Low (3)</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if b.status == 'ALLOCATED' %}<span class="badge badge-success">ALLOCATED</span>
+                            {% elif b.status == 'WAITING' %}<span class="badge badge-warning">WAITING</span>
+                            {% elif b.status == 'READY' %}<span class="badge badge-info">READY</span>
+                            {% elif b.status == 'COMPLETED' %}<span class="badge badge-purple">COMPLETED</span>
+                            {% else %}<span class="badge badge-neutral">CANCELLED</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if b.computer_no %}
+                                <strong class="text-emerald">{{ b.lab_name }}</strong> &bull; {{ b.computer_no }}
+                            {% else %}
+                                <span class="text-muted">--</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if b.status == 'ALLOCATED' %}
+                            <form method="POST" action="{{ url_for('complete_session_admin', request_id=b.request_id) }}" class="inline-form">
+                                <button type="submit" class="btn btn-outline-success btn-sm" title="Mark finished & free this PC">Free Desk (Complete)</button>
+                            </form>
+                            {% else %}
+                                <span class="text-muted text-sm">--</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">No student requests submitted yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 2: EXAMS & SLOTS -->
+    <div id="tab-exams" class="tab-pane">
+        <div class="row-2col">
+            <div class="card p-4">
+                <h3 class="card-title">➕ Add New Exam</h3>
+                <form method="POST" action="{{ url_for('add_exam') }}">
+                    <div class="form-group">
+                        <label class="form-label">Exam Name</label>
+                        <input type="text" name="exam_name" class="form-input" placeholder="e.g. Operating Systems Final" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Subject Code</label>
+                        <input type="text" name="subject_code" class="form-input" placeholder="e.g. CS-301" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Exam Date</label>
+                        <input type="date" name="exam_date" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Default Priority (1-3)</label>
+                        <select name="priority" class="form-input">
+                            <option value="1">1 - High Priority</option>
+                            <option value="2" selected>2 - Normal Priority</option>
+                            <option value="3">3 - Low Priority</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Add Exam &rarr;</button>
+                </form>
+            </div>
+
+            <div class="card p-4">
+                <h3 class="card-title">⏰ Add Time Slot to Exam</h3>
+                <form method="POST" action="{{ url_for('add_slot') }}">
+                    <div class="form-group">
+                        <label class="form-label">Select Exam</label>
+                        <select name="exam_id" class="form-input" required>
+                            {% for e in exams %}
+                                <option value="{{ e.exam_id }}">{{ e.exam_name }} ({{ e.subject_code }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Start Time</label>
+                        <input type="time" name="start_time" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">End Time</label>
+                        <input type="time" name="end_time" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Student Capacity</label>
+                        <input type="number" name="capacity" class="form-input" value="30" min="1" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Add Time Slot &rarr;</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h3 class="section-title text-base mb-2">Active Slots & Fast Actions</h3>
+            <div class="table-container">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Exam</th>
+                            <th>Time</th>
+                            <th>Allocated / Capacity</th>
+                            <th>Complete Entire Slot</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in slots %}
+                        <tr>
+                            <td><strong>{{ s.exam_name }}</strong> ({{ s.subject_code }})</td>
+                            <td>{{ s.start_time }} - {{ s.end_time }}</td>
+                            <td>{{ s.current_allocated }} / {{ s.capacity }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('complete_entire_slot', slot_id=s.slot_id) }}" onsubmit="return confirm('Complete all allocations for this entire slot? This will free all PCs.');">
+                                    <button type="submit" class="btn btn-outline-purple btn-sm">Complete Entire Slot</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: LABS & COMPUTERS -->
+    <div id="tab-labs" class="tab-pane">
+        <div class="row-2col">
+            <div class="card p-4">
+                <h3 class="card-title"><img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt=""> Add New Lab</h3>
+                <form method="POST" action="{{ url_for('add_lab') }}">
+                    <div class="form-group">
+                        <label class="form-label">Lab Name</label>
+                        <input type="text" name="lab_name" class="form-input" placeholder="e.g. Turing Lab A" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Total Desk Capacity</label>
+                        <input type="number" name="capacity" class="form-input" value="30" min="1" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Add Lab &rarr;</button>
+                </form>
+            </div>
+
+            <div class="card p-4">
+                <h3 class="card-title"><img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""> Bulk Register Computers</h3>
+                <form method="POST" action="{{ url_for('add_computers_bulk') }}">
+                    <div class="form-group">
+                        <label class="form-label">Select Lab</label>
+                        <select name="lab_id" class="form-input" required>
+                            {% for l in labs %}
+                                <option value="{{ l.lab_id }}">{{ l.lab_name }} (Registered: {{ l.total_computers }}/{{ l.capacity }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Number of PCs to Generate</label>
+                        <input type="number" name="quantity" class="form-input" value="10" min="1" max="100" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Generate Computers &rarr;</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h3 class="section-title text-base mb-2">Registered Labs</h3>
+            <div class="table-container">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Lab ID</th>
+                            <th>Lab Name</th>
+                            <th>Capacity</th>
+                            <th>Total Desks</th>
+                            <th>Active Desks</th>
+                            <th>Maintenance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for l in labs %}
+                        <tr>
+                            <td><strong>#{{ l.lab_id }}</strong></td>
+                            <td><strong>{{ l.lab_name }}</strong></td>
+                            <td>{{ l.capacity }}</td>
+                            <td>{{ l.total_computers }}</td>
+                            <td><span class="badge badge-success">{{ l.active_computers or 0 }}</span></td>
+                            <td><span class="badge badge-warning">{{ l.maintenance_computers or 0 }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: REGISTERED STUDENTS -->
+    <div id="tab-students" class="tab-pane">
+        <div class="section-header-row mb-3">
+            <div>
+                <h3 class="section-title text-base">Registered Students Directory</h3>
+                <p class="section-subtitle">List of enrolled student accounts and their current exam booking status</p>
+            </div>
+            <span class="badge badge-info">Total Enrolled: {{ students|length }} Students</span>
+        </div>
+        <div class="table-container">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Student Name</th>
+                        <th>Email Address</th>
+                        <th>Total Bookings</th>
+                        <th>Active Allocated Desks</th>
+                        <th>Completed Exams</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for st in students %}
+                    <tr>
+                        <td><strong>#{{ st.student_id }}</strong></td>
+                        <td><strong>{{ st.name }}</strong></td>
+                        <td><span class="text-muted">{{ st.email }}</span></td>
+                        <td><span class="badge badge-neutral">{{ st.total_bookings }} request(s)</span></td>
+                        <td>
+                            {% if st.active_allocations > 0 %}
+                                <span class="badge badge-success">🟢 {{ st.active_allocations }} Active Desk(s)</span>
+                            {% else %}
+                                <span class="text-muted text-sm">None</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if st.completed_exams > 0 %}
+                                <span class="badge badge-purple"><img class="ui-icon" src="{{ url_for('static', filename='icons/allocated.svg') }}" alt=""> {{ st.completed_exams }} Completed</span>
+                            {% else %}
+                                <span class="text-muted text-sm">0</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">No students registered yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(evt, tabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    evt.currentTarget.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+}
+
+function loadPcAvailability(slotId) {
+    const container = document.getElementById('pcGridContainer');
+    if (!slotId) {
+        container.innerHTML = '<div class="text-muted p-4">Please select a slot above.</div>';
+        return;
+    }
+    container.innerHTML = '<div class="loading-state">Loading PC statuses...</div>';
+
+    fetch('/api/pc-availability/' + slotId)
+        .then(res => res.json())
+        .then(data => {
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="empty-state-card"><p>No computers found for this slot.</p></div>';
+                return;
+            }
+
+            const byLab = {};
+            data.forEach(pc => {
+                if (!byLab[pc.lab_name]) byLab[pc.lab_name] = [];
+                byLab[pc.lab_name].push(pc);
+            });
+
+            let html = '';
+            for (const lab in byLab) {
+                html += `<div class="lab-grid-block">
+                    <h4 class="lab-grid-title"><img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt=""> ${lab} (${byLab[lab].length} Desks)</h4>
+                    <div class="pc-tiles-row">`;
+
+                byLab[lab].forEach(pc => {
+                    let statusClass = 'tile-available';
+                    let statusBadge = 'FREE';
+                    let tooltip = 'Free & Available';
+
+                    if (pc.state === 'MAINTENANCE') {
+                        statusClass = 'tile-maintenance';
+                        statusBadge = 'MAINT';
+                        tooltip = 'In Maintenance';
+                    } else if (pc.availability === 'OCCUPIED') {
+                        statusClass = 'tile-occupied';
+                        statusBadge = 'OCCUPIED';
+                        tooltip = `Assigned to: ${pc.student_name} (Req #${pc.request_id})`;
+                    }
+
+                    html += `<div class="pc-tile ${statusClass}" title="${tooltip}">
+                        <span class="pc-icon"><img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""></span>
+                        <span class="pc-num">${pc.computer_no}</span>
+                        <span class="pc-status-label">${statusBadge}</span>
+                        ${pc.student_name ? `<span class="pc-student-tag">${pc.student_name}</span>` : ''}
+                    </div>`;
+                });
+
+                html += `</div></div>`;
+            }
+            container.innerHTML = html;
+        })
+        .catch(err => {
+            container.innerHTML = `<div class="alert alert-error">Error loading availability: ${err}</div>`;
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const slotSelect = document.getElementById('slotSelect');
+    if (slotSelect && slotSelect.value) {
+        loadPcAvailability(slotSelect.value);
+    }
+});
+</script>
+{% endblock %}

@@ -1,8 +1,0 @@
-build/
-build-release/
-*.exe
-*.dll
-*.lib
-*.obj
-*.pdb
-.env

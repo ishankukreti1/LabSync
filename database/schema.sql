@@ -68,6 +68,6 @@ CREATE TABLE IF NOT EXISTS allocations(
  FOREIGN KEY(request_id) REFERENCES requests(request_id),
  FOREIGN KEY(slot_id) REFERENCES slots(slot_id),
  FOREIGN KEY(computer_id) REFERENCES computers(computer_id),
- UNIQUE(slot_id,computer_id)
+ KEY idx_slot_computer(slot_id,computer_id)
 );
 CREATE INDEX idx_schedule ON requests(status,priority,request_time);

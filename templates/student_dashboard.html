@@ -1,0 +1,165 @@
+
+{% extends "base.html" %}
+{% block title %}Student Dashboard - LabSync{% endblock %}
+{% block content %}
+<div class="dashboard-header">
+    <div class="greeting-box">
+        <span class="greeting-icon"><img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""></span>
+        <div>
+            <h1 class="greeting-title">Hello, {{ student.name }}!</h1>
+            <p class="greeting-subtitle">Student ID: <strong>#{{ student.student_id }}</strong> | {{ student.email }}</p>
+        </div>
+    </div>
+    <div class="header-actions">
+        <a href="#book-section" class="btn btn-primary">Book New Exam Slot &darr;</a>
+    </div>
+</div>
+
+<!-- My Bookings & Allocated Desks -->
+<section class="dashboard-section">
+    <div class="section-header-row">
+        <div>
+            <h2 class="section-title">My Exam Desks & Bookings</h2>
+            <p class="section-subtitle">Live status of your exam reservations and allocated computer desks</p>
+        </div>
+        <span class="badge badge-neutral">{{ bookings|length }} Reservation(s)</span>
+    </div>
+    {% if bookings %}
+    <div class="cards-grid">
+        {% for b in bookings %}
+        <div class="booking-card status-border-{{ b.status|lower }}">
+            <div class="booking-card-top">
+                <div>
+                    <span class="subject-tag">{{ b.subject_code }}</span>
+                    <h3 class="exam-card-title">{{ b.exam_name }}</h3>
+                </div>
+                {% if b.status == 'ALLOCATED' %}
+                    <span class="badge badge-success"><img class="ui-icon" src="{{ url_for('static', filename='icons/allocated.svg') }}" alt=""> DESK ALLOCATED</span>
+                {% elif b.status == 'WAITING' %}
+                    <span class="badge badge-warning"><img class="ui-icon" src="{{ url_for('static', filename='icons/pending.svg') }}" alt=""> IN WAITING QUEUE</span>
+                {% elif b.status == 'READY' %}
+                    <span class="badge badge-info"><img class="ui-icon" src="{{ url_for('static', filename='icons/scheduler.svg') }}" alt=""> READY TO SCHEDULE</span>
+                {% elif b.status == 'COMPLETED' %}
+                    <span class="badge badge-purple"><img class="ui-icon" src="{{ url_for('static', filename='icons/allocated.svg') }}" alt=""> EXAM COMPLETED</span>
+                {% else %}
+                    <span class="badge badge-neutral">CANCELLED</span>
+                {% endif %}
+            </div>
+
+            <div class="booking-details-grid">
+                <div class="detail-item">
+                    <span class="detail-label"><img class="ui-icon" src="{{ url_for('static', filename='icons/calendar.svg') }}" alt=""> Date</span>
+                    <span class="detail-value">{{ b.exam_date }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">⏰ Slot Time</span>
+                    <span class="detail-value">{{ b.start_time }} - {{ b.end_time }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label"><img class="ui-icon" src="{{ url_for('static', filename='icons/scheduler.svg') }}" alt=""> Priority</span>
+                    <span class="detail-value">
+                        {% if b.priority == 1 %}🔥 High
+                        {% elif b.priority == 2 %}Normal
+                        {% else %}🌱 Low{% endif %}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">🔢 Request ID</span>
+                    <span class="detail-value">#{{ b.request_id }}</span>
+                </div>
+            </div>
+
+            {% if b.status == 'ALLOCATED' %}
+            <div class="desk-highlight-box">
+                <span class="desk-icon"><img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""></span>
+                <div class="desk-info">
+                    <span class="desk-title">Your Assigned Station:</span>
+                    <span class="desk-location">{{ b.lab_name }} &bull; Desk <strong>{{ b.computer_no }}</strong></span>
+                </div>
+            </div>
+            {% elif b.status == 'WAITING' %}
+            <div class="waiting-highlight-box">
+                <span class="waiting-icon"><img class="ui-icon" src="{{ url_for('static', filename='icons/pending.svg') }}" alt=""></span>
+                <div class="waiting-info">
+                    <span>You are in queue. Once a desk frees up in this slot, you will be allocated automatically!</span>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if b.status in ['READY', 'WAITING', 'ALLOCATED'] %}
+            <div class="card-action-footer">
+                <form method="POST" action="{{ url_for('cancel_booking', request_id=b.request_id) }}" onsubmit="return confirm('Are you sure you want to cancel this booking?');">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">Cancel Booking</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state-card">
+        <span class="empty-emoji"><img class="ui-icon" src="{{ url_for('static', filename='icons/booking.svg') }}" alt=""></span>
+        <h3>No active bookings yet</h3>
+        <p>Browse available exams below and select a time slot to get your computer desk allocated.</p>
+        <a href="#book-section" class="btn btn-primary-sm">Browse Available Exams &darr;</a>
+    </div>
+    {% endif %}
+</section>
+
+<!-- Book an Exam Slot -->
+<section id="book-section" class="dashboard-section mt-5">
+    <div class="section-header-row">
+        <div>
+            <h2 class="section-title">Book an Exam Time Slot</h2>
+            <p class="section-subtitle">Pick from currently scheduled exams and reserve your desk slot</p>
+        </div>
+    </div>
+    {% if slots %}
+    <div class="table-container">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Exam & Subject</th>
+                    <th>Exam Date</th>
+                    <th>Time Slot</th>
+                    <th>Capacity / Seats</th>
+                    <th>Booking Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in slots %}
+                <tr>
+                    <td>
+                        <strong>{{ s.exam_name }}</strong>
+                        <span class="text-muted block text-sm">{{ s.subject_code }}</span>
+                    </td>
+                    <td>{{ s.exam_date }}</td>
+                    <td><span class="time-badge">{{ s.start_time }} - {{ s.end_time }}</span></td>
+                    <td>
+                        {% set remaining = s.capacity - s.allocated_count %}
+                        {% if remaining > 0 %}
+                            <span class="badge badge-success">{{ remaining }} seats available ({{ s.allocated_count }}/{{ s.capacity }})</span>
+                        {% else %}
+                            <span class="badge badge-warning">Full (Waiting list open)</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('book_slot') }}" class="inline-book-form">
+                            <input type="hidden" name="slot_id" value="{{ s.slot_id }}">
+                            <button type="submit" class="btn btn-primary-sm">Book Desk <img class="ui-icon" src="{{ url_for('static', filename='icons/booking.svg') }}" alt=""></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state-card">
+        <span class="empty-emoji"><img class="ui-icon" src="{{ url_for('static', filename='icons/calendar.svg') }}" alt=""></span>
+        <h3>No exams scheduled right now</h3>
+        <p>The examination administrator has not posted any active slots yet. Check back soon!</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
