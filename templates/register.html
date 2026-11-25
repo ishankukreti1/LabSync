@@ -1,22 +1,20 @@
-
 {% extends "base.html" %}
 {% block title %}Create Account - LabSync{% endblock %}
 {% block content %}
 <div class="auth-wrapper">
     <div class="auth-card">
         <div class="auth-header">
-            <span class="auth-avatar"><img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""></span>
             <h2 class="auth-title">Join LabSync</h2>
-            <p class="auth-subtitle">Create your account in under 30 seconds</p>
+            <p class="auth-subtitle">Create your account to reserve desks or manage examinations</p>
         </div>
 
         <!-- Role Toggle Tabs -->
         <div class="role-tabs">
             <a href="{{ url_for('register', role='student') }}" class="role-tab {% if role == 'student' %}active{% endif %}">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""> New Student
+                <img class="ui-icon-sm" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""> New Student
             </a>
             <a href="{{ url_for('register', role='admin') }}" class="role-tab {% if role == 'admin' %}active{% endif %}">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/admin.svg') }}" alt=""> New Admin
+                <img class="ui-icon-sm" src="{{ url_for('static', filename='icons/admin.svg') }}" alt=""> New Admin
             </a>
         </div>
 
@@ -33,14 +31,14 @@
             </div>
             <div class="form-group">
                 <label for="password" class="form-label">Create Password</label>
-                <input type="password" id="password" name="password" class="form-input" placeholder="Choose a strong password" required minlength="4">
+                <input type="password" id="password" name="password" class="form-input" placeholder="Choose a secure password" required minlength="4">
             </div>
             <div class="form-group">
                 <label for="confirm_password" class="form-label">Confirm Password</label>
                 <input type="password" id="confirm_password" name="confirm_password" class="form-input" placeholder="Re-type your password" required minlength="4">
             </div>
             <button type="submit" class="btn btn-primary btn-block btn-lg">
-                Create {{ 'Admin' if role == 'admin' else 'Student' }} Account &rarr;
+                Create {{ 'Admin' if role == 'admin' else 'Student' }} Account
             </button>
         </form>
 

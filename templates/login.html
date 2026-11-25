@@ -1,22 +1,20 @@
-
 {% extends "base.html" %}
 {% block title %}Sign In - LabSync{% endblock %}
 {% block content %}
 <div class="auth-wrapper">
     <div class="auth-card">
         <div class="auth-header">
-            <span class="auth-avatar">👋</span>
-            <h2 class="auth-title">Welcome Back!</h2>
+            <h2 class="auth-title">Welcome Back</h2>
             <p class="auth-subtitle">Sign in to manage your exams and desk allocations</p>
         </div>
 
         <!-- Role Toggle Tabs -->
         <div class="role-tabs">
             <a href="{{ url_for('login', role='student') }}" class="role-tab {% if role == 'student' %}active{% endif %}">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""> Student
+                <img class="ui-icon-sm" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""> Student
             </a>
             <a href="{{ url_for('login', role='admin') }}" class="role-tab {% if role == 'admin' %}active{% endif %}">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/admin.svg') }}" alt=""> Admin
+                <img class="ui-icon-sm" src="{{ url_for('static', filename='icons/admin.svg') }}" alt=""> Admin
             </a>
         </div>
 
@@ -32,15 +30,13 @@
                 <input type="password" id="password" name="password" class="form-input" placeholder="Enter your password" required>
             </div>
             <button type="submit" class="btn btn-primary btn-block btn-lg">
-                Sign In as {{ 'Administrator' if role == 'admin' else 'Student' }} &rarr;
+                Sign In as {{ 'Administrator' if role == 'admin' else 'Student' }}
             </button>
         </form>
 
         {% if role == 'admin' %}
         <div class="demo-box">
-            <span class="demo-badge">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/dashboard.svg') }}" alt=""> Quick Test Admin Account:
-            </span>
+            <span class="demo-badge">Quick Test Admin Account:</span>
             <p>Email: <code>admin@labsync.local</code> | Password: <code>admin123</code></p>
         </div>
         {% endif %}
@@ -48,9 +44,7 @@
         <!-- Registration Link -->
         <div class="auth-footer">
             <p>Don't have an account yet?
-                <a href="{{ url_for('register', role=role) }}" class="link-bold">
-                    Create new account <img class="ui-icon" src="{{ url_for('static', filename='icons/allocated.svg') }}" alt="">
-                </a>
+                <a href="{{ url_for('register', role=role) }}" class="link-bold">Create new account</a>
             </p>
         </div>
     </div>

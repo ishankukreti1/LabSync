@@ -1,19 +1,25 @@
-
 {% extends "base.html" %}
 {% block title %}Admin Dashboard - LabSync{% endblock %}
 {% block content %}
 <div class="dashboard-header">
     <div class="greeting-box">
-        <span class="greeting-icon"><img class="ui-icon" src="{{ url_for('static', filename='icons/admin.svg') }}" alt=""></span>
-        <div>
+        <div class="greeting-title-wrap">
+            <span class="section-icon-badge">
+                <img class="ui-icon" src="{{ url_for('static', filename='icons/admin.svg') }}" alt="Admin">
+            </span>
             <h1 class="greeting-title">Administrator Command Center</h1>
-            <p class="greeting-subtitle">Manage exams, computer labs, run the Priority-FCFS scheduler & monitor desk allocations</p>
         </div>
+        <p class="greeting-subtitle">Manage exams, computer labs, run the Priority-FCFS scheduler & monitor desk allocations</p>
     </div>
     <div class="header-actions">
+        <form method="POST" action="{{ url_for('admin_trigger_expiry') }}" class="inline-form">
+            <button type="submit" class="btn btn-secondary btn-lg" title="Release ended exams & expire no-show reservations">
+                Run Expiry Sweep
+            </button>
+        </form>
         <form method="POST" action="{{ url_for('trigger_scheduler') }}" class="inline-form">
-            <button type="submit" class="btn btn-emerald btn-lg pulse-glow">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/scheduler.svg') }}" alt=""> Run Scheduler Now
+            <button type="submit" class="btn btn-primary btn-lg pulse-glow">
+                Run Scheduler Now
             </button>
         </form>
     </div>
@@ -22,46 +28,60 @@
 <!-- Stats Counter Grid -->
 <div class="stats-grid mb-5">
     <div class="stat-card">
-        <div class="stat-icon bg-amber"><img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""></div>
-        <div class="stat-info">
-            <span class="stat-number">{{ stats.students }}</span>
-            <span class="stat-label">Students</span>
+        <div class="stat-icon-wrap">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt="Students">
         </div>
+        <span class="stat-number">{{ stats.students }}</span>
+        <span class="stat-label">Students</span>
     </div>
     <div class="stat-card">
-        <div class="stat-icon bg-emerald"><img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt=""></div>
-        <div class="stat-info">
-            <span class="stat-number">{{ stats.exams }}</span>
-            <span class="stat-label">Exams</span>
+        <div class="stat-icon-wrap">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt="Exams">
         </div>
+        <span class="stat-number">{{ stats.exams }}</span>
+        <span class="stat-label">Exams</span>
     </div>
     <div class="stat-card">
-        <div class="stat-icon bg-sky"><img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt=""></div>
-        <div class="stat-info">
-            <span class="stat-number">{{ stats.labs }}</span>
-            <span class="stat-label">Labs</span>
+        <div class="stat-icon-wrap">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt="Labs">
         </div>
+        <span class="stat-number">{{ stats.labs }}</span>
+        <span class="stat-label">Labs</span>
     </div>
     <div class="stat-card">
-        <div class="stat-icon bg-rose"><img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""></div>
-        <div class="stat-info">
-            <span class="stat-number">{{ stats.computers }}</span>
-            <span class="stat-label">Total PCs</span>
+        <div class="stat-icon-wrap">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt="Total PCs">
         </div>
+        <span class="stat-number">{{ stats.computers }}</span>
+        <span class="stat-label">Total PCs ({{ stats.active_pcs }} Active)</span>
     </div>
     <div class="stat-card">
-        <div class="stat-icon bg-orange"><img class="ui-icon" src="{{ url_for('static', filename='icons/pending.svg') }}" alt=""></div>
-        <div class="stat-info">
-            <span class="stat-number">{{ stats.pending }}</span>
-            <span class="stat-label">Pending Queue</span>
+        <div class="stat-icon-wrap">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/pending.svg') }}" alt="Maintenance">
         </div>
+        <span class="stat-number">{{ stats.maintenance_pcs }}</span>
+        <span class="stat-label">In Maintenance</span>
     </div>
     <div class="stat-card">
-        <div class="stat-icon bg-purple"><img class="ui-icon" src="{{ url_for('static', filename='icons/allocated.svg') }}" alt=""></div>
-        <div class="stat-info">
-            <span class="stat-number">{{ stats.allocated }}</span>
-            <span class="stat-label">Active Desks</span>
+        <div class="stat-icon-wrap">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/scheduler.svg') }}" alt="Queue">
         </div>
+        <span class="stat-number">{{ stats.pending }}</span>
+        <span class="stat-label">Pending Queue</span>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon-wrap">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/allocated.svg') }}" alt="Allocated">
+        </div>
+        <span class="stat-number">{{ stats.allocated }}</span>
+        <span class="stat-label">Active Desks ({{ stats.checked_in }} In-Exam)</span>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon-wrap">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt="Completed">
+        </div>
+        <span class="stat-number">{{ stats.completed }}</span>
+        <span class="stat-label">Completed Exams</span>
     </div>
 </div>
 
@@ -69,8 +89,13 @@
 <section class="dashboard-section mb-5">
     <div class="section-header-row">
         <div>
-            <h2 class="section-title"><img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""> Live PC Availability Matrix</h2>
-            <p class="section-subtitle">Real-time status of computer stations. Select a slot to inspect who is occupying which desk.</p>
+            <h2 class="section-title">
+                <span class="section-icon-badge">
+                    <img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt="">
+                </span>
+                Live PC Availability & Maintenance Matrix
+            </h2>
+            <p class="section-subtitle">Real-time status of computer stations. Click maintenance toggles on any desk to take it offline or return it to service.</p>
         </div>
         <div class="slot-filter-wrap">
             <label for="slotSelect" class="text-sm font-semibold">Select Slot:</label>
@@ -81,29 +106,61 @@
             </select>
         </div>
     </div>
-    <div class="matrix-legend">
-        <span class="legend-item"><span class="legend-dot dot-available"></span> Free & Available</span>
-        <span class="legend-item"><span class="legend-dot dot-occupied"></span> Occupied (Allocated)</span>
-        <span class="legend-item"><span class="legend-dot dot-maintenance"></span> Maintenance</span>
+
+    <!-- Matrix Toolbar: Filter Pills & Counts -->
+    <div class="matrix-toolbar">
+        <div class="matrix-filter-pills">
+            <button type="button" class="matrix-pill active" id="btn-filter-all" onclick="filterMatrix('ALL')">All Desks (<span id="count-all">0</span>)</button>
+            <button type="button" class="matrix-pill" id="btn-filter-avail" onclick="filterMatrix('AVAILABLE')">Free (<span id="count-avail">0</span>)</button>
+            <button type="button" class="matrix-pill" id="btn-filter-occ" onclick="filterMatrix('OCCUPIED')">Occupied (<span id="count-occ">0</span>)</button>
+            <button type="button" class="matrix-pill" id="btn-filter-maint" onclick="filterMatrix('MAINTENANCE')">Maintenance (<span id="count-maint">0</span>)</button>
+        </div>
+        <div class="matrix-legend">
+            <span class="legend-item"><span class="legend-dot dot-available"></span> Free</span>
+            <span class="legend-item"><span class="legend-dot dot-occupied"></span> Allocated</span>
+            <span class="legend-item"><span class="legend-dot dot-checked-in"></span> Checked In</span>
+            <span class="legend-item"><span class="legend-dot dot-maintenance"></span> Maintenance</span>
+        </div>
     </div>
+
     <div id="pcGridContainer" class="pc-matrix-grid">
-        <div class="loading-state">Loading computer stations...</div>
+        <div class="loading-state text-muted">Loading computer stations...</div>
     </div>
 </section>
 
 <!-- Management Tabs -->
 <div class="tab-container mb-5">
     <div class="tab-headers">
-        <button class="tab-btn active" onclick="switchTab(event, 'tab-bookings')"><img class="ui-icon" src="{{ url_for('static', filename='icons/booking.svg') }}" alt=""> All Bookings ({{ bookings|length }})</button>
-        <button class="tab-btn" onclick="switchTab(event, 'tab-students')"><img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""> Registered Students ({{ students|length }})</button>
-        <button class="tab-btn" onclick="switchTab(event, 'tab-exams')"><img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt=""> Exams & Slots</button>
-        <button class="tab-btn" onclick="switchTab(event, 'tab-labs')"><img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt=""> Labs & Computers</button>
+        <button class="tab-btn active" onclick="switchTab(event, 'tab-bookings')">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/booking.svg') }}" alt=""> All Bookings ({{ bookings|length }})
+        </button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-students')">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""> Registered Students ({{ students|length }})
+        </button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-exams')">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt=""> Exams & Slots
+        </button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-labs')">
+            <img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt=""> Labs & Computers ({{ computers|length }})
+        </button>
     </div>
 
     <!-- TAB 1: ALL BOOKINGS -->
     <div id="tab-bookings" class="tab-pane active">
+        <!-- Table Filter Pills -->
+        <div class="table-filter-pills">
+            <span class="text-sm font-semibold text-muted" style="margin-right: 0.5rem;">Filter by Status:</span>
+            <button type="button" class="table-pill active" onclick="filterBookings('ALL')">All ({{ bookings|length }})</button>
+            <button type="button" class="table-pill" onclick="filterBookings('ALLOCATED')">Allocated</button>
+            <button type="button" class="table-pill" onclick="filterBookings('CHECKED_IN')">Checked In</button>
+            <button type="button" class="table-pill" onclick="filterBookings('WAITING')">Waiting</button>
+            <button type="button" class="table-pill" onclick="filterBookings('COMPLETED')">Completed</button>
+            <button type="button" class="table-pill" onclick="filterBookings('NO_SHOW')">No-Shows</button>
+            <button type="button" class="table-pill" onclick="filterBookings('CANCELLED')">Cancelled</button>
+        </div>
+
         <div class="table-container">
-            <table class="custom-table">
+            <table class="custom-table" id="bookingsTable">
                 <thead>
                     <tr>
                         <th>Req ID</th>
@@ -113,12 +170,12 @@
                         <th>Priority</th>
                         <th>Status</th>
                         <th>Allocated Desk</th>
-                        <th>Session Action</th>
+                        <th>Session Action & History</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for b in bookings %}
-                    <tr>
+                    <tr class="booking-row" data-status="{{ b.status }}">
                         <td><strong>#{{ b.request_id }}</strong></td>
                         <td>
                             <strong>{{ b.student_name }}</strong>
@@ -126,7 +183,7 @@
                         </td>
                         <td>
                             {{ b.exam_name }}
-                            <span class="text-muted block text-sm">{{ b.subject_code }}</span>
+                            <span class="text-muted block text-sm">{{ b.subject_code }} &bull; {{ b.exam_date }}</span>
                         </td>
                         <td>{{ b.start_time }} - {{ b.end_time }}</td>
                         <td>
@@ -135,24 +192,57 @@
                             {% else %}<span class="badge badge-neutral">Low (3)</span>{% endif %}
                         </td>
                         <td>
-                            {% if b.status == 'ALLOCATED' %}<span class="badge badge-success">ALLOCATED</span>
-                            {% elif b.status == 'WAITING' %}<span class="badge badge-warning">WAITING</span>
-                            {% elif b.status == 'READY' %}<span class="badge badge-info">READY</span>
-                            {% elif b.status == 'COMPLETED' %}<span class="badge badge-purple">COMPLETED</span>
-                            {% else %}<span class="badge badge-neutral">CANCELLED</span>{% endif %}
+                            {% if b.status == 'ALLOCATED' %}
+                                <span class="badge badge-info">ALLOCATED</span>
+                            {% elif b.status == 'CHECKED_IN' %}
+                                <span class="badge badge-cyan">CHECKED IN</span>
+                            {% elif b.status == 'WAITING' %}
+                                <span class="badge badge-warning">WAITING</span>
+                            {% elif b.status == 'READY' %}
+                                <span class="badge badge-info">READY</span>
+                            {% elif b.status == 'COMPLETED' %}
+                                <span class="badge badge-purple">COMPLETED</span>
+                            {% elif b.status == 'NO_SHOW' %}
+                                <span class="badge badge-danger">NO-SHOW</span>
+                            {% else %}
+                                <span class="badge badge-neutral">CANCELLED</span>
+                            {% endif %}
                         </td>
                         <td>
                             {% if b.computer_no %}
-                                <strong class="text-emerald">{{ b.lab_name }}</strong> &bull; {{ b.computer_no }}
+                                <strong>{{ b.lab_name }}</strong> &bull; {{ b.computer_no }}
+                                {% if b.checked_in_at %}
+                                    <span class="text-muted block text-sm">Checked in: {{ b.checked_in_at.strftime('%H:%M') if b.checked_in_at else '' }}</span>
+                                {% endif %}
                             {% else %}
                                 <span class="text-muted">--</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if b.status == 'ALLOCATED' %}
-                            <form method="POST" action="{{ url_for('complete_session_admin', request_id=b.request_id) }}" class="inline-form">
-                                <button type="submit" class="btn btn-outline-success btn-sm" title="Mark finished & free this PC">Free Desk (Complete)</button>
-                            </form>
+                            <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                                <form method="POST" action="{{ url_for('admin_check_in', request_id=b.request_id) }}" class="inline-form">
+                                    <button type="submit" class="btn btn-outline-success btn-sm" title="Confirm student arrival">Check In</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('complete_session_admin', request_id=b.request_id) }}" class="inline-form">
+                                    <button type="submit" class="btn btn-outline-purple btn-sm" title="Mark finished & free desk">Free Desk</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('admin_mark_no_show', request_id=b.request_id) }}" class="inline-form" onsubmit="return confirm('Mark student as No-Show? This releases desk PC-{{ b.computer_no }} for waiting students.');">
+                                    <button type="submit" class="btn btn-outline-warning btn-sm" title="Release desk for no-show">No-Show</button>
+                                </form>
+                            </div>
+                            {% elif b.status == 'CHECKED_IN' %}
+                            <div style="display: flex; gap: 0.4rem; align-items: center;">
+                                <form method="POST" action="{{ url_for('complete_session_admin', request_id=b.request_id) }}" class="inline-form">
+                                    <button type="submit" class="btn btn-outline-purple btn-sm" title="Mark exam finished & free desk">Free Desk</button>
+                                </form>
+                            </div>
+                            {% elif b.status == 'COMPLETED' %}
+                                <span class="text-muted text-sm">Completed & Released {% if b.release_reason %}({{ b.release_reason }}){% endif %}</span>
+                            {% elif b.status == 'NO_SHOW' %}
+                                <span class="text-rose text-sm">Expired No-Show {% if b.release_reason %}({{ b.release_reason }}){% endif %}</span>
+                            {% elif b.status == 'CANCELLED' %}
+                                <span class="text-muted text-sm">Cancelled {% if b.release_reason %}({{ b.release_reason }}){% endif %}</span>
                             {% else %}
                                 <span class="text-muted text-sm">--</span>
                             {% endif %}
@@ -172,7 +262,9 @@
     <div id="tab-exams" class="tab-pane">
         <div class="row-2col">
             <div class="card p-4">
-                <h3 class="card-title">➕ Add New Exam</h3>
+                <h3 class="card-title">
+                    <img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt=""> Add New Exam
+                </h3>
                 <form method="POST" action="{{ url_for('add_exam') }}">
                     <div class="form-group">
                         <label class="form-label">Exam Name</label>
@@ -194,12 +286,14 @@
                             <option value="3">3 - Low Priority</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-block">Add Exam &rarr;</button>
+                    <button type="submit" class="btn btn-primary btn-block">Add Exam</button>
                 </form>
             </div>
 
             <div class="card p-4">
-                <h3 class="card-title">⏰ Add Time Slot to Exam</h3>
+                <h3 class="card-title">
+                    <img class="ui-icon" src="{{ url_for('static', filename='icons/calendar.svg') }}" alt=""> Add Time Slot to Exam
+                </h3>
                 <form method="POST" action="{{ url_for('add_slot') }}">
                     <div class="form-group">
                         <label class="form-label">Select Exam</label>
@@ -221,13 +315,13 @@
                         <label class="form-label">Student Capacity</label>
                         <input type="number" name="capacity" class="form-input" value="30" min="1" required>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-block">Add Time Slot &rarr;</button>
+                    <button type="submit" class="btn btn-primary btn-block">Add Time Slot</button>
                 </form>
             </div>
         </div>
 
         <div class="mt-4">
-            <h3 class="section-title text-base mb-2">Active Slots & Fast Actions</h3>
+            <h3 class="section-title text-base mb-2">Active Slots & Actions</h3>
             <div class="table-container">
                 <table class="custom-table">
                     <thead>
@@ -235,7 +329,7 @@
                             <th>Exam</th>
                             <th>Time</th>
                             <th>Allocated / Capacity</th>
-                            <th>Complete Entire Slot</th>
+                            <th>Slot Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -257,11 +351,13 @@
         </div>
     </div>
 
-    <!-- TAB 3: LABS & COMPUTERS -->
+    <!-- TAB 3: LABS & COMPUTERS (INCLUDES PC MAINTENANCE CONTROLLER) -->
     <div id="tab-labs" class="tab-pane">
         <div class="row-2col">
             <div class="card p-4">
-                <h3 class="card-title"><img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt=""> Add New Lab</h3>
+                <h3 class="card-title">
+                    <img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt=""> Add New Lab
+                </h3>
                 <form method="POST" action="{{ url_for('add_lab') }}">
                     <div class="form-group">
                         <label class="form-label">Lab Name</label>
@@ -271,12 +367,14 @@
                         <label class="form-label">Total Desk Capacity</label>
                         <input type="number" name="capacity" class="form-input" value="30" min="1" required>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-block">Add Lab &rarr;</button>
+                    <button type="submit" class="btn btn-primary btn-block">Add Lab</button>
                 </form>
             </div>
 
             <div class="card p-4">
-                <h3 class="card-title"><img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""> Bulk Register Computers</h3>
+                <h3 class="card-title">
+                    <img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""> Bulk Register Computers
+                </h3>
                 <form method="POST" action="{{ url_for('add_computers_bulk') }}">
                     <div class="form-group">
                         <label class="form-label">Select Lab</label>
@@ -290,13 +388,13 @@
                         <label class="form-label">Number of PCs to Generate</label>
                         <input type="number" name="quantity" class="form-input" value="10" min="1" max="100" required>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-block">Generate Computers &rarr;</button>
+                    <button type="submit" class="btn btn-primary btn-block">Generate Computers</button>
                 </form>
             </div>
         </div>
 
         <div class="mt-4">
-            <h3 class="section-title text-base mb-2">Registered Labs</h3>
+            <h3 class="section-title text-base mb-2">Registered Laboratories</h3>
             <div class="table-container">
                 <table class="custom-table">
                     <thead>
@@ -317,7 +415,75 @@
                             <td>{{ l.capacity }}</td>
                             <td>{{ l.total_computers }}</td>
                             <td><span class="badge badge-success">{{ l.active_computers or 0 }}</span></td>
-                            <td><span class="badge badge-warning">{{ l.maintenance_computers or 0 }}</span></td>
+                            <td><span class="badge badge-maintenance">{{ l.maintenance_computers or 0 }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PC STATIONS & MAINTENANCE CONTROLLER -->
+        <div class="mt-5">
+            <div class="section-header-row mb-3">
+                <div>
+                    <h3 class="section-title text-base">
+                        <img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""> PC Stations & Maintenance Mode Controller
+                    </h3>
+                    <p class="section-subtitle">Toggle individual computer stations between ACTIVE and MAINTENANCE modes. Placing a desk under maintenance automatically re-queues any active student for reallocation.</p>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Station</th>
+                            <th>Laboratory</th>
+                            <th>Hardware State</th>
+                            <th>Desk Booking Status</th>
+                            <th>Maintenance Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in computers %}
+                        <tr>
+                            <td>
+                                <img class="ui-icon-sm" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt="PC">
+                                <strong>#{{ c.computer_id }} &bull; {{ c.computer_no }}</strong>
+                            </td>
+                            <td>{{ c.lab_name }}</td>
+                            <td>
+                                {% if c.state == 'ACTIVE' %}
+                                    <span class="badge badge-success">ACTIVE</span>
+                                {% else %}
+                                    <span class="badge badge-maintenance">MAINTENANCE</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if c.allocation_status %}
+                                    <span class="badge badge-cyan">{{ c.allocation_status }}</span>
+                                    <span class="text-sm block text-muted">{{ c.student_name }} (Req #{{ c.request_id }})</span>
+                                {% else %}
+                                    <span class="text-muted text-sm">Free / Ready</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="POST" action="{{ url_for('toggle_computer_state', computer_id=c.computer_id) }}" class="inline-form">
+                                    {% if c.state == 'ACTIVE' %}
+                                        <button type="submit" class="btn btn-outline-warning btn-sm" onclick="return confirm('Put {{ c.computer_no }} into MAINTENANCE mode? Any active student reservation will be re-queued safely.');">
+                                            Put in Maintenance
+                                        </button>
+                                    {% else %}
+                                        <button type="submit" class="btn btn-outline-success btn-sm">
+                                            Activate PC
+                                        </button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">No computers registered yet. Bulk register them above.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -330,7 +496,9 @@
     <div id="tab-students" class="tab-pane">
         <div class="section-header-row mb-3">
             <div>
-                <h3 class="section-title text-base">Registered Students Directory</h3>
+                <h3 class="section-title text-base">
+                    <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt=""> Registered Students Directory
+                </h3>
                 <p class="section-subtitle">List of enrolled student accounts and their current exam booking status</p>
             </div>
             <span class="badge badge-info">Total Enrolled: {{ students|length }} Students</span>
@@ -345,6 +513,7 @@
                         <th>Total Bookings</th>
                         <th>Active Allocated Desks</th>
                         <th>Completed Exams</th>
+                        <th>No-Shows</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -356,14 +525,21 @@
                         <td><span class="badge badge-neutral">{{ st.total_bookings }} request(s)</span></td>
                         <td>
                             {% if st.active_allocations > 0 %}
-                                <span class="badge badge-success">🟢 {{ st.active_allocations }} Active Desk(s)</span>
+                                <span class="badge badge-success">{{ st.active_allocations }} Active Desk(s)</span>
                             {% else %}
                                 <span class="text-muted text-sm">None</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if st.completed_exams > 0 %}
-                                <span class="badge badge-purple"><img class="ui-icon" src="{{ url_for('static', filename='icons/allocated.svg') }}" alt=""> {{ st.completed_exams }} Completed</span>
+                                <span class="badge badge-purple">{{ st.completed_exams }} Completed</span>
+                            {% else %}
+                                <span class="text-muted text-sm">0</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if st.no_shows > 0 %}
+                                <span class="badge badge-danger">{{ st.no_shows }} No-Show(s)</span>
                             {% else %}
                                 <span class="text-muted text-sm">0</span>
                             {% endif %}
@@ -371,7 +547,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="text-center py-4 text-muted">No students registered yet.</td>
+                        <td colspan="7" class="text-center py-4 text-muted">No students registered yet.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -383,11 +559,71 @@
 
 {% block scripts %}
 <script>
+let currentMatrixFilter = 'ALL';
+
 function switchTab(evt, tabId) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
     evt.currentTarget.classList.add('active');
     document.getElementById(tabId).classList.add('active');
+}
+
+function filterBookings(status) {
+    document.querySelectorAll('.table-pill').forEach(b => b.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+
+    const rows = document.querySelectorAll('#bookingsTable .booking-row');
+    rows.forEach(r => {
+        const rowStatus = r.getAttribute('data-status');
+        if (status === 'ALL' || rowStatus === status) {
+            r.style.display = '';
+        } else {
+            r.style.display = 'none';
+        }
+    });
+}
+
+function filterMatrix(category) {
+    currentMatrixFilter = category;
+    document.querySelectorAll('.matrix-pill').forEach(p => p.classList.remove('active'));
+    
+    if (category === 'ALL') document.getElementById('btn-filter-all').classList.add('active');
+    if (category === 'AVAILABLE') document.getElementById('btn-filter-avail').classList.add('active');
+    if (category === 'OCCUPIED') document.getElementById('btn-filter-occ').classList.add('active');
+    if (category === 'MAINTENANCE') document.getElementById('btn-filter-maint').classList.add('active');
+
+    const tiles = document.querySelectorAll('.pc-tile');
+    tiles.forEach(tile => {
+        const f = tile.getAttribute('data-filter');
+        if (category === 'ALL' || f === category) {
+            tile.style.display = '';
+        } else {
+            tile.style.display = 'none';
+        }
+    });
+}
+
+function togglePcState(computerId, computerNo) {
+    fetch('/admin/computer/toggle-state/' + computerId, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const slotSelect = document.getElementById('slotSelect');
+            if (slotSelect && slotSelect.value) {
+                loadPcAvailability(slotSelect.value);
+            }
+        } else {
+            alert('Error toggling PC state: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        alert('Network error while toggling PC state: ' + err);
+    });
 }
 
 function loadPcAvailability(slotId) {
@@ -396,21 +632,43 @@ function loadPcAvailability(slotId) {
         container.innerHTML = '<div class="text-muted p-4">Please select a slot above.</div>';
         return;
     }
-    container.innerHTML = '<div class="loading-state">Loading PC statuses...</div>';
+    container.innerHTML = '<div class="loading-state text-muted">Loading PC statuses...</div>';
 
     fetch('/api/pc-availability/' + slotId)
         .then(res => res.json())
         .then(data => {
             if (!data || data.length === 0) {
                 container.innerHTML = '<div class="empty-state-card"><p>No computers found for this slot.</p></div>';
+                document.getElementById('count-all').innerText = '0';
+                document.getElementById('count-avail').innerText = '0';
+                document.getElementById('count-occ').innerText = '0';
+                document.getElementById('count-maint').innerText = '0';
                 return;
             }
 
+            let countAll = data.length;
+            let countAvail = 0;
+            let countOcc = 0;
+            let countMaint = 0;
+
             const byLab = {};
             data.forEach(pc => {
+                if (pc.state === 'MAINTENANCE') {
+                    countMaint++;
+                } else if (pc.availability === 'OCCUPIED' || pc.allocation_status) {
+                    countOcc++;
+                } else {
+                    countAvail++;
+                }
+
                 if (!byLab[pc.lab_name]) byLab[pc.lab_name] = [];
                 byLab[pc.lab_name].push(pc);
             });
+
+            document.getElementById('count-all').innerText = countAll;
+            document.getElementById('count-avail').innerText = countAvail;
+            document.getElementById('count-occ').innerText = countOcc;
+            document.getElementById('count-maint').innerText = countMaint;
 
             let html = '';
             for (const lab in byLab) {
@@ -421,23 +679,49 @@ function loadPcAvailability(slotId) {
                 byLab[lab].forEach(pc => {
                     let statusClass = 'tile-available';
                     let statusBadge = 'FREE';
+                    let filterCategory = 'AVAILABLE';
+                    let dotClass = 'available';
                     let tooltip = 'Free & Available';
+                    let toggleBtnText = 'Set Maintenance';
+                    let toggleBtnClass = 'btn-to-maint';
 
                     if (pc.state === 'MAINTENANCE') {
                         statusClass = 'tile-maintenance';
-                        statusBadge = 'MAINT';
-                        tooltip = 'In Maintenance';
-                    } else if (pc.availability === 'OCCUPIED') {
+                        statusBadge = 'MAINTENANCE';
+                        filterCategory = 'MAINTENANCE';
+                        dotClass = 'maintenance';
+                        tooltip = 'Desk Under Maintenance (Unavailable for booking)';
+                        toggleBtnText = 'Set Active';
+                        toggleBtnClass = 'btn-to-active';
+                    } else if (pc.allocation_status === 'CHECKED_IN') {
+                        statusClass = 'tile-checked-in';
+                        statusBadge = 'CHECKED IN';
+                        filterCategory = 'OCCUPIED';
+                        dotClass = 'checked-in';
+                        tooltip = `Checked-in: ${pc.student_name} (Req #${pc.request_id})`;
+                    } else if (pc.availability === 'OCCUPIED' || pc.allocation_status) {
                         statusClass = 'tile-occupied';
                         statusBadge = 'OCCUPIED';
+                        filterCategory = 'OCCUPIED';
+                        dotClass = 'occupied';
                         tooltip = `Assigned to: ${pc.student_name} (Req #${pc.request_id})`;
                     }
 
-                    html += `<div class="pc-tile ${statusClass}" title="${tooltip}">
-                        <span class="pc-icon"><img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt=""></span>
-                        <span class="pc-num">${pc.computer_no}</span>
-                        <span class="pc-status-label">${statusBadge}</span>
-                        ${pc.student_name ? `<span class="pc-student-tag">${pc.student_name}</span>` : ''}
+                    const isHidden = (currentMatrixFilter !== 'ALL' && currentMatrixFilter !== filterCategory);
+
+                    html += `<div class="pc-tile ${statusClass}" data-filter="${filterCategory}" title="${tooltip}" style="${isHidden ? 'display:none;' : ''}">
+                        <div class="pc-tile-top">
+                            <div class="pc-screen-wrap">
+                                <img class="pc-screen-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt="PC">
+                                <span class="pc-indicator-dot dot-${dotClass}"></span>
+                            </div>
+                            <span class="pc-num">${pc.computer_no}</span>
+                            <span class="pc-status-label">${statusBadge}</span>
+                            ${pc.student_name ? `<span class="pc-student-tag" title="${pc.student_name}">${pc.student_name}</span>` : ''}
+                        </div>
+                        <button type="button" class="tile-action-btn ${toggleBtnClass}" onclick="event.stopPropagation(); togglePcState(${pc.computer_id}, '${pc.computer_no}')">
+                            ${toggleBtnText}
+                        </button>
                     </div>`;
                 });
 

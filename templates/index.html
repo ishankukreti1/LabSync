@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 
 {% block title %}LabSync - Campus Examination & Desk Allocation{% endblock %}
@@ -7,20 +6,19 @@
 <div class="hero-section">
     <div class="hero-content">
         <div class="hero-badge">
-            <img class="ui-icon" src="{{ url_for('static', filename='icons/allocated.svg') }}" alt=""> Welcome To LabSync
+            <img class="ui-icon-sm" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt="">
+            Campus Examination System
         </div>
-        <h1 class="hero-title">A System For Management Of <span class="gradient-text">Computer-Based Examination</span></h1>
-        <p class="hero-subtitle">Seamlessly book exam time slots, get fair Priority + FCFS desk scheduling, and view real-time computer lab availability with zero hassle.</p>
+        <h1 class="hero-title">Management of <span class="gradient-text">Computer-Based Examinations</span></h1>
+        <p class="hero-subtitle">Book exam time slots, automate Priority + FCFS desk scheduling, and monitor real-time computer lab availability with zero conflict.</p>
         <div class="hero-actions">
             {% if session.get('role') == 'student' %}
-                <a href="{{ url_for('student_dashboard') }}" class="btn btn-primary btn-lg">Go to My Student Portal &rarr;</a>
+                <a href="{{ url_for('student_dashboard') }}" class="btn btn-primary btn-lg">Open Student Portal</a>
             {% elif session.get('role') == 'admin' %}
-                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary btn-lg">Open Admin Dashboard &rarr;</a>
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary btn-lg">Open Admin Dashboard</a>
             {% else %}
                 <a href="{{ url_for('login', role='student') }}" class="btn btn-primary btn-lg">Student Login</a>
-                <a href="{{ url_for('register') }}" class="btn btn-secondary btn-lg">
-                    Register Account <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt="">
-                </a>
+                <a href="{{ url_for('register') }}" class="btn btn-secondary btn-lg">Create Account</a>
             {% endif %}
         </div>
     </div>
@@ -28,40 +26,32 @@
     <!-- Quick Stat Cards -->
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-icon bg-amber">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt="">
+            <div class="stat-icon-wrap">
+                <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt="Students">
             </div>
-            <div class="stat-info">
-                <span class="stat-number">{{ stats.students }}</span>
-                <span class="stat-label">Enrolled Students</span>
-            </div>
+            <span class="stat-number">{{ stats.students }}</span>
+            <span class="stat-label">Enrolled Students</span>
         </div>
         <div class="stat-card">
-            <div class="stat-icon bg-emerald">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt="">
+            <div class="stat-icon-wrap">
+                <img class="ui-icon" src="{{ url_for('static', filename='icons/graduation.svg') }}" alt="Exams">
             </div>
-            <div class="stat-info">
-                <span class="stat-number">{{ stats.exams }}</span>
-                <span class="stat-label">Active Exams</span>
-            </div>
+            <span class="stat-number">{{ stats.exams }}</span>
+            <span class="stat-label">Active Exams</span>
         </div>
         <div class="stat-card">
-            <div class="stat-icon bg-sky">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt="">
+            <div class="stat-icon-wrap">
+                <img class="ui-icon" src="{{ url_for('static', filename='icons/lab.svg') }}" alt="Labs">
             </div>
-            <div class="stat-info">
-                <span class="stat-number">{{ stats.labs }}</span>
-                <span class="stat-label">Computer Labs</span>
-            </div>
+            <span class="stat-number">{{ stats.labs }}</span>
+            <span class="stat-label">Computer Labs</span>
         </div>
         <div class="stat-card">
-            <div class="stat-icon bg-rose">
-                <img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt="">
+            <div class="stat-icon-wrap">
+                <img class="ui-icon" src="{{ url_for('static', filename='icons/monitor.svg') }}" alt="Stations">
             </div>
-            <div class="stat-info">
-                <span class="stat-number">{{ stats.computers }}</span>
-                <span class="stat-label">Active Desks</span>
-            </div>
+            <span class="stat-number">{{ stats.computers }}</span>
+            <span class="stat-label">Total Stations</span>
         </div>
     </div>
 </div>
@@ -69,12 +59,12 @@
 <!-- Portal Selection -->
 <section class="portals-section">
     <h2 class="section-title text-center">Choose Your Portal</h2>
-    <p class="section-subtitle text-center">Simple and human-friendly experience designed for students and administrators</p>
+    <p class="section-subtitle text-center">Simple and distraction-free experience designed for students and administrators</p>
     <div class="portal-cards-grid">
         <!-- Student Portal -->
         <div class="portal-card student-card">
             <div class="portal-header">
-                <span class="portal-emoji">
+                <span class="section-icon-badge">
                     <img class="ui-icon" src="{{ url_for('static', filename='icons/student.svg') }}" alt="">
                 </span>
                 <h3>Student Portal</h3>
@@ -83,10 +73,10 @@
             <ul class="portal-features">
                 <li>Browse exams & open slot capacities</li>
                 <li>Fair Priority + FCFS desk scheduling</li>
-                <li>Instant PC desk & lab notifications</li>
+                <li>Instant desk & station confirmation</li>
             </ul>
             <div class="portal-footer">
-                <a href="{{ url_for('login', role='student') }}" class="btn btn-student btn-block">Enter as Student &rarr;</a>
+                <a href="{{ url_for('login', role='student') }}" class="btn btn-student btn-block">Enter as Student</a>
                 <p class="portal-subtext">New here? <a href="{{ url_for('register', role='student') }}">Sign up in 30 seconds</a></p>
             </div>
         </div>
@@ -94,20 +84,20 @@
         <!-- Admin Portal -->
         <div class="portal-card admin-card">
             <div class="portal-header">
-                <span class="portal-emoji">
+                <span class="section-icon-badge">
                     <img class="ui-icon" src="{{ url_for('static', filename='icons/admin.svg') }}" alt="">
                 </span>
                 <h3>Admin & Staff Portal</h3>
             </div>
-            <p class="portal-desc">Add exam schedules, configure lab computer capacities, run automated Priority+FCFS scheduling, and monitor live lab occupation.</p>
+            <p class="portal-desc">Post exams, configure computer laboratories, trigger the C++ scheduler engine, manage PC maintenance modes, and monitor live allocations.</p>
             <ul class="portal-features">
-                <li>1-Click Priority-FCFS Scheduler</li>
-                <li>Visual computer grid & availability matrix</li>
-                <li>Instant session completion & desk clearing</li>
+                <li>Manage labs, stations & maintenance mode</li>
+                <li>High-performance C++ scheduling bridge</li>
+                <li>Automatic expiry & check-in lifecycle</li>
             </ul>
             <div class="portal-footer">
-                <a href="{{ url_for('login', role='admin') }}" class="btn btn-admin btn-block">Enter Admin Console &rarr;</a>
-                <p class="portal-subtext">First time? Default admin: <code>admin@labsync.local</code> (or <a href="{{ url_for('register', role='admin') }}">register new</a>)</p>
+                <a href="{{ url_for('login', role='admin') }}" class="btn btn-admin btn-block">Enter as Admin</a>
+                <p class="portal-subtext">Restricted to authorized campus examination staff</p>
             </div>
         </div>
     </div>
