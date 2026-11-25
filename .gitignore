@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.pytest_cache/
+
+# Build & compiled binaries
+build/
+bin/
+*.exe
+*.obj
+*.dll
+*.lib
+*.pdb
+*.ilk
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Environment & local credentials
+.env
+db_config.json
+
+# IDE & Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS & Temp
+.DS_Store
+Thumbs.db
+desktop.ini
+tatus
+.dist/
+scratch/
