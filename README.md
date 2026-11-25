@@ -58,3 +58,22 @@ LabSync is an OS–DBMS integrated project designed to manage examination slot b
 **Course:** Operating Systems and Database Management Systems
 
 **Project:** LabSync — Smart Lab Scheduling System
+## Student chatbot
+
+The student dashboard includes a support chatbot. It uses authenticated student context to retrieve that student's own bookings and public exam-slot information from MySQL. Without an AI key it provides deterministic local answers for supported intents.
+
+To enable the generative AI response layer, set these environment variables before starting Flask:
+
+```powershell
+$env:OPENAI_API_KEY="your-api-key"
+$env:OPENAI_MODEL="gpt-4o-mini"
+# Optional for an OpenAI-compatible provider:
+$env:OPENAI_BASE_URL="https://api.openai.com/v1"
+python app.py
+```
+
+Keep the API key server-side and out of source control. The model receives only public schedule data and the authenticated student's own booking records. It cannot execute SQL or modify bookings. If the provider is unavailable, LabSync falls back to local rule-based responses.
+
+## Deadlock handling
+
+The C++ scheduler uses a consistent transaction lock order (request, slot, lab rows ordered by ID, then selected computer) and handles MySQL deadlock error 1213 and lock-wait timeout 1205 by rolling back and retrying up to three attempts with bounded backoff. The scheduler reports detected deadlocks in its output. This is transaction-level deadlock recovery; the separate graph-cycle helper remains a utility and should not be described as monitoring MySQL's live wait-for graph.

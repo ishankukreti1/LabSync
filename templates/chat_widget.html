@@ -1,0 +1,277 @@
+<!-- LabSync AI Assistant Floating Widget -->
+<section class="labsync-chat" id="labsync-chat" aria-label="LabSync Assistant">
+    <button type="button" class="chat-toggle" id="chat-toggle" aria-expanded="false" aria-controls="chat-panel">
+        <img class="chat-toggle-avatar" src="{{ url_for('static', filename='images/robot.jpg') }}" alt="LabSync AI">
+        <span class="chat-toggle-text">LabSync AI</span>
+        <span class="chat-toggle-badge" id="chat-badge-pulse"></span>
+    </button>
+
+    <div class="chat-panel" id="chat-panel" hidden>
+        <!-- Header -->
+        <div class="chat-header">
+            <div class="chat-header-main">
+                <img src="{{ url_for('static', filename='images/robot.jpg') }}" class="chat-robot-avatar" alt="LabSync AI">
+                <div class="chat-header-info">
+                    <div class="chat-header-title-row">
+                        <strong>LabSync AI</strong>
+                        <span class="ai-status-pill" id="ai-status-pill" title="Checking Ollama...">
+                            <span class="status-dot dot-checking" id="status-dot"></span>
+                            <span id="ai-model-tag">Ollama</span>
+                        </span>
+                    </div>
+                    <small class="chat-header-sub">
+                        {% if session.get('role') == 'admin' %}
+                            Admin Operations & Scheduling Copilot
+                        {% else %}
+                            Student Exam & Desk Scheduling Assistant
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+            <div class="chat-header-actions">
+                <button type="button" id="chat-clear" title="Restart conversation" class="chat-btn-icon" aria-label="Restart chat">&#8635;</button>
+                <button type="button" id="chat-close" title="Close chat" class="chat-btn-icon" aria-label="Close chat">&times;</button>
+            </div>
+        </div>
+
+        <!-- Quick Prompt Chips -->
+        <div class="chat-quick-chips" id="chat-quick-chips">
+            {% if session.get('role') == 'admin' %}
+                <button type="button" class="quick-chip" data-query="What is the current system status and pending queue?">System Stats</button>
+                <button type="button" class="quick-chip" data-query="How many computers are active vs in maintenance?">PC Availability</button>
+                <button type="button" class="quick-chip" data-query="How does Priority + FCFS scheduling work in LabSync?">Scheduler Rules</button>
+            {% else %}
+                <button type="button" class="quick-chip" data-query="Where is my exam and what computer desk do I have?">My Desk & Lab</button>
+                <button type="button" class="quick-chip" data-query="What exam slots are available to book right now?">Upcoming Exams</button>
+                <button type="button" class="quick-chip" data-query="How does Priority and FCFS scheduling work?">Priority Rules</button>
+                <button type="button" class="quick-chip" data-query="How do I book or cancel an exam slot?">Booking Guide</button>
+            {% endif %}
+        </div>
+
+        <!-- Messages scroll container -->
+        <div class="chat-messages" id="chat-messages" aria-live="polite">
+            <div class="chat-message assistant">
+                <div class="chat-avatar"><img src="{{ url_for('static', filename='images/robot.jpg') }}" alt="AI"></div>
+                <div class="chat-body">
+                    Hi <strong>{{ session.get('user_name', 'there') }}</strong>! I'm your <strong>LabSync AI</strong> assistant connected to your campus database.
+                    Ask me any question about your
+                    {% if session.get('role') == 'admin' %}
+                        system stats, active computers, pending requests, or C++ scheduling rules.
+                    {% else %}
+                        exam bookings, assigned lab desk, available seats, or Priority-FCFS scheduling.
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Form -->
+        <form id="chat-form" class="chat-form">
+            <input id="chat-input" type="text" maxlength="1000" placeholder="Ask a quick question..." autocomplete="off" required>
+            <button type="submit" class="chat-send-btn" id="chat-send-btn" title="Send message" aria-label="Send message">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </form>
+        <p class="chat-disclaimer">Answers are direct, concise & retrieved from your LabSync database.</p>
+    </div>
+</section>
+
+<script>
+(() => {
+  const toggle = document.getElementById('chat-toggle');
+  const panel = document.getElementById('chat-panel');
+  const close = document.getElementById('chat-close');
+  const clear = document.getElementById('chat-clear');
+  const form = document.getElementById('chat-form');
+  const input = document.getElementById('chat-input');
+  const messages = document.getElementById('chat-messages');
+  const chipsContainer = document.getElementById('chat-quick-chips');
+  const statusDot = document.getElementById('status-dot');
+  const modelTag = document.getElementById('ai-model-tag');
+
+  if (!toggle || !panel || !form) return;
+
+  // Toggle chat drawer
+  function show(open) {
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    if (open) {
+      input.focus();
+      checkAiStatus();
+    }
+  }
+
+  toggle.addEventListener('click', () => show(panel.hidden));
+  close.addEventListener('click', () => show(false));
+
+  // Restart / clear conversation
+  clear.addEventListener('click', () => {
+    messages.innerHTML = `
+      <div class="chat-message assistant">
+        <div class="chat-avatar"><img src="{{ url_for('static', filename='images/robot.jpg') }}" alt="AI"></div>
+        <div class="chat-body">Conversation cleared. What can I help you with?</div>
+      </div>
+    `;
+    input.focus();
+  });
+
+  // Check Ollama AI health
+  async function checkAiStatus() {
+    try {
+      const res = await fetch('{{ url_for("ai_status") }}');
+      const data = await res.json();
+      if (data.connected) {
+        statusDot.className = 'status-dot dot-online';
+        modelTag.textContent = data.model || 'labsync-ai';
+        modelTag.title = 'Ollama model connected';
+      } else {
+        statusDot.className = 'status-dot dot-local';
+        modelTag.textContent = 'Smart Fallback';
+        modelTag.title = 'Deterministic local engine';
+      }
+    } catch (_) {
+      statusDot.className = 'status-dot dot-local';
+      modelTag.textContent = 'Smart Fallback';
+    }
+  }
+  checkAiStatus();
+
+  // Escape HTML to prevent XSS
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Safe lightweight markdown parser for clean formatted Q&A
+  function renderMarkdown(raw) {
+    let text = escapeHtml(raw);
+
+    // Format bold: **text**
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Format italic: *text*
+    text = text.replace(/\*([^\*]+?)\*/g, '<em>$1</em>');
+    // Format inline code: `code`
+    text = text.replace(/`([^`]+?)`/g, '<code>$1</code>');
+
+    // Format bullet points (• or - )
+    const lines = text.split('\n');
+    let inList = false;
+    const formatted = [];
+
+    for (let line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('•') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        const itemContent = trimmed.replace(/^(?:•|-|\*)\s*/, '');
+        if (!inList) {
+          formatted.push('<ul class="chat-bullet-list">');
+          inList = true;
+        }
+        formatted.push(`<li>${itemContent}</li>`);
+      } else {
+        if (inList) {
+          formatted.push('</ul>');
+          inList = false;
+        }
+        if (trimmed.length > 0) {
+          formatted.push(`<p class="chat-p">${trimmed}</p>`);
+        }
+      }
+    }
+    if (inList) formatted.push('</ul>');
+
+    return formatted.join('');
+  }
+
+  // Append a message to the chat container
+  function addMessage(content, role, isHtml = false) {
+    const row = document.createElement('div');
+    row.className = `chat-message ${role}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'chat-avatar';
+    if (role === 'assistant') {
+      avatar.innerHTML = `<img src="{{ url_for('static', filename='images/robot.jpg') }}" alt="AI">`;
+    } else {
+      avatar.textContent = '👤';
+    }
+    row.appendChild(avatar);
+
+    const body = document.createElement('div');
+    body.className = 'chat-body';
+    if (isHtml) {
+      body.innerHTML = content;
+    } else {
+      body.innerHTML = renderMarkdown(content);
+    }
+    row.appendChild(body);
+
+    messages.appendChild(row);
+    messages.scrollTop = messages.scrollHeight;
+    return row;
+  }
+
+  // Quick prompt chip click handler
+  if (chipsContainer) {
+    chipsContainer.addEventListener('click', (e) => {
+      const chip = e.target.closest('.quick-chip');
+      if (!chip) return;
+      const query = chip.getAttribute('data-query');
+      if (!query) return;
+      submitUserQuery(query);
+    });
+  }
+
+  // Form submit handler
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const query = input.value.trim();
+    if (!query) return;
+    submitUserQuery(query);
+  });
+
+  // Submit query to /api/chat
+  async function submitUserQuery(query) {
+    addMessage(query, 'user');
+    input.value = '';
+    input.disabled = true;
+
+    // Typing animation
+    const typingBubble = addMessage(
+      '<span class="chat-typing-dots"><span></span><span></span><span></span></span>',
+      'assistant pending',
+      true
+    );
+
+    try {
+      const response = await fetch('{{ url_for("chat_api") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: query })
+      });
+      const data = await response.json();
+      const replyText = data.reply || "I couldn't prepare a response right now.";
+
+      const bodyNode = typingBubble.querySelector('.chat-body');
+      bodyNode.innerHTML = renderMarkdown(replyText);
+      typingBubble.classList.remove('pending');
+
+      if (!response.ok) {
+        typingBubble.classList.add('chat-error');
+      }
+    } catch (_) {
+      const bodyNode = typingBubble.querySelector('.chat-body');
+      bodyNode.innerHTML = '<em>Unable to reach LabSync AI right now. Please try again.</em>';
+      typingBubble.classList.remove('pending');
+      typingBubble.classList.add('chat-error');
+    } finally {
+      input.disabled = false;
+      input.focus();
+      messages.scrollTop = messages.scrollHeight;
+    }
+  }
+})();
+</script>
+
