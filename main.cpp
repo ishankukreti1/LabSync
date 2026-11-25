@@ -26,7 +26,7 @@ int main() {
 
     // 1. Attempt automatic connection using saved db_config.json or default password
     string autoPassword = "";
-    int autoPort = 3309;~
+    int autoPort = 3309;
     ifstream cf("db_config.json");
     if (cf.is_open()) {
         string line;

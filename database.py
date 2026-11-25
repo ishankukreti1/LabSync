@@ -55,7 +55,7 @@ SCHEMA_STATEMENTS = [
         slot_id INT NOT NULL,
         priority TINYINT NOT NULL,
         request_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        status ENUM('READY','WAITING','ALLOCATED','COMPLETED','CANCELLED') NOT NULL DEFAULT 'READY',
+        status ENUM('READY','WAITING','ALLOCATED','CHECKED_IN','COMPLETED','CANCELLED','NO_SHOW','EXPIRED') NOT NULL DEFAULT 'READY',
         CONSTRAINT chk_request_priority CHECK(priority BETWEEN 1 AND 3),
         FOREIGN KEY(student_id) REFERENCES students(student_id),
         FOREIGN KEY(exam_id) REFERENCES exams(exam_id),
@@ -66,8 +66,11 @@ SCHEMA_STATEMENTS = [
         request_id INT NOT NULL UNIQUE,
         slot_id INT NOT NULL,
         computer_id INT NOT NULL,
-        status ENUM('ALLOCATED','COMPLETED','CANCELLED') NOT NULL DEFAULT 'ALLOCATED',
+        status ENUM('ALLOCATED','CHECKED_IN','COMPLETED','CANCELLED','NO_SHOW','EXPIRED') NOT NULL DEFAULT 'ALLOCATED',
         allocated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        checked_in_at TIMESTAMP NULL,
+        released_at TIMESTAMP NULL,
+        release_reason VARCHAR(50) NULL,
         FOREIGN KEY(request_id) REFERENCES requests(request_id),
         FOREIGN KEY(slot_id) REFERENCES slots(slot_id),
         FOREIGN KEY(computer_id) REFERENCES computers(computer_id),
@@ -115,6 +118,38 @@ def init_db():
 
         try:
             cur.execute("CREATE INDEX idx_schedule ON requests(status,priority,request_time)")
+        except Exception:
+            pass
+
+        # Migrate status enums and columns for existing databases
+        try:
+            cur.execute("""
+                ALTER TABLE requests 
+                MODIFY COLUMN status ENUM('READY','WAITING','ALLOCATED','CHECKED_IN','COMPLETED','CANCELLED','NO_SHOW','EXPIRED') NOT NULL DEFAULT 'READY'
+            """)
+        except Exception:
+            pass
+
+        try:
+            cur.execute("""
+                ALTER TABLE allocations 
+                MODIFY COLUMN status ENUM('ALLOCATED','CHECKED_IN','COMPLETED','CANCELLED','NO_SHOW','EXPIRED') NOT NULL DEFAULT 'ALLOCATED'
+            """)
+        except Exception:
+            pass
+
+        try:
+            cur.execute("ALTER TABLE allocations ADD COLUMN checked_in_at TIMESTAMP NULL")
+        except Exception:
+            pass
+
+        try:
+            cur.execute("ALTER TABLE allocations ADD COLUMN released_at TIMESTAMP NULL")
+        except Exception:
+            pass
+
+        try:
+            cur.execute("ALTER TABLE allocations ADD COLUMN release_reason VARCHAR(50) NULL")
         except Exception:
             pass
 

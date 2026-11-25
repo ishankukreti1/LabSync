@@ -10,6 +10,8 @@ class Config:
     MYSQL_USER = 'root'
     MYSQL_PASSWORD = ''
     MYSQL_DB = 'labsync'
+    CHECKIN_DEADLINE_MINUTES = 15       # Reservations expire as NO_SHOW if not checked in 15 mins after slot start
+    CHECKIN_WINDOW_BEFORE_MINUTES = 30  # Students can check in starting 30 mins before slot start
 
     @classmethod
     def load(cls):
@@ -48,6 +50,7 @@ class Config:
             'MYSQL_HOST': host,
             'MYSQL_PORT': int(port),
             'MYSQL_USER': user,
+            'MYSQL_PASSWORD': password,
             'MYSQL_DB': database
         }
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:

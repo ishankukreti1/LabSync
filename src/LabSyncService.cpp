@@ -625,7 +625,7 @@ void LabSyncService::myBookings() {
                 "JOIN exams e ON e.exam_id=r.exam_id "
                 "JOIN slots s ON s.slot_id=r.slot_id "
                 "LEFT JOIN allocations a ON a.request_id=r.request_id "
-                "AND a.status='ALLOCATED' "
+                "AND a.status IN ('ALLOCATED','CHECKED_IN') "
                 "LEFT JOIN computers c ON c.computer_id=a.computer_id "
                 "LEFT JOIN labs l ON l.lab_id=c.lab_id "
                 "WHERE r.student_id=? "
@@ -681,7 +681,7 @@ void LabSyncService::cancelBooking() {
         auto p1 = unique_ptr<sql::PreparedStatement>(
             db.get()->prepareStatement(
                 "UPDATE allocations SET status='CANCELLED' "
-                "WHERE request_id=? AND status='ALLOCATED'"
+                "WHERE request_id=? AND status IN ('ALLOCATED','CHECKED_IN')"
             )
         );
 
@@ -692,7 +692,7 @@ void LabSyncService::cancelBooking() {
             db.get()->prepareStatement(
                 "UPDATE requests SET status='CANCELLED' "
                 "WHERE request_id=? "
-                "AND status IN ('READY','WAITING','ALLOCATED')"
+                "AND status IN ('READY','WAITING','ALLOCATED','CHECKED_IN')"
             )
         );
 
@@ -730,7 +730,7 @@ void LabSyncService::listBookings() {
                 "JOIN exams e ON e.exam_id=r.exam_id "
                 "JOIN slots s ON s.slot_id=r.slot_id "
                 "LEFT JOIN allocations a ON a.request_id=r.request_id "
-                "AND a.status='ALLOCATED' "
+                "AND a.status IN ('ALLOCATED','CHECKED_IN') "
                 "LEFT JOIN computers c ON c.computer_id=a.computer_id "
                 "LEFT JOIN labs l ON l.lab_id=c.lab_id "
                 "ORDER BY r.priority,r.request_time"
@@ -779,14 +779,14 @@ void LabSyncService::computerAvailability() {
                 "SELECT l.lab_name, c.computer_no, c.state, "
                 "CASE "
                 "WHEN c.state='MAINTENANCE' THEN 'MAINTENANCE' "
-                "WHEN a.status='ALLOCATED' THEN 'OCCUPIED' "
+                "WHEN a.status IN ('ALLOCATED','CHECKED_IN') THEN 'OCCUPIED' "
                 "ELSE 'AVAILABLE' END AS availability, "
                 "st.name AS student_name, "
                 "r.request_id "
                 "FROM computers c "
                 "JOIN labs l ON l.lab_id=c.lab_id "
                 "LEFT JOIN allocations a ON a.computer_id=c.computer_id "
-                "AND a.slot_id=? AND a.status='ALLOCATED' "
+                "AND a.slot_id=? AND a.status IN ('ALLOCATED','CHECKED_IN') "
                 "LEFT JOIN requests r ON r.request_id=a.request_id "
                 "LEFT JOIN students st ON st.student_id=r.student_id "
                 "ORDER BY l.lab_id, c.computer_id"
@@ -845,7 +845,7 @@ void LabSyncService::completeSession() {
         auto a = unique_ptr<sql::PreparedStatement>(
             db.get()->prepareStatement(
                 "UPDATE allocations SET status='COMPLETED' "
-                "WHERE request_id=? AND status='ALLOCATED'"
+                "WHERE request_id=? AND status IN ('ALLOCATED','CHECKED_IN')"
             )
         );
 
@@ -855,7 +855,7 @@ void LabSyncService::completeSession() {
         auto r = unique_ptr<sql::PreparedStatement>(
             db.get()->prepareStatement(
                 "UPDATE requests SET status='COMPLETED' "
-                "WHERE request_id=? AND status='ALLOCATED'"
+                "WHERE request_id=? AND status IN ('ALLOCATED','CHECKED_IN')"
             )
         );
 

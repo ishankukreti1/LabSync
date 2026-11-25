@@ -6,6 +6,8 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <chrono>
+#include <thread>
 
 using namespace std;
 
@@ -59,7 +61,7 @@ void LabSyncService::runScheduler() {
                     vector<int> labIds;
                     while(labRows->next()) labIds.push_back(labRows->getInt(1));
                     auto count=unique_ptr<sql::PreparedStatement>(db.get()->prepareStatement(
-                        "SELECT COUNT(*) FROM allocations WHERE slot_id=? AND status='ALLOCATED'"));
+                        "SELECT COUNT(*) FROM allocations WHERE slot_id=? AND status IN ('ALLOCATED','CHECKED_IN')"));
                     count->setInt(1,slot);
                     auto cr=unique_ptr<sql::ResultSet>(count->executeQuery()); cr->next();
                     int cid=0;
@@ -77,7 +79,7 @@ void LabSyncService::runScheduler() {
                             " JOIN computers occupied ON occupied.computer_id=a.computer_id "
                             " JOIN slots os ON os.slot_id=a.slot_id "
                             " JOIN exams oe ON oe.exam_id=os.exam_id "
-                            " WHERE occupied.lab_id=c.lab_id AND a.status='ALLOCATED' "
+                            " WHERE occupied.lab_id=c.lab_id AND a.status IN ('ALLOCATED','CHECKED_IN') "
                             " AND oe.exam_date=te.exam_date "
                             " AND os.start_time<target.end_time AND target.start_time<os.end_time "
                             " AND oe.exam_id<>te.exam_id) "
@@ -85,7 +87,7 @@ void LabSyncService::runScheduler() {
                             " SELECT 1 FROM allocations a "
                             " JOIN slots os ON os.slot_id=a.slot_id "
                             " JOIN exams oe ON oe.exam_id=os.exam_id "
-                            " WHERE a.computer_id=c.computer_id AND a.status='ALLOCATED' "
+                            " WHERE a.computer_id=c.computer_id AND a.status IN ('ALLOCATED','CHECKED_IN') "
                             " AND oe.exam_date=te.exam_date "
                             " AND os.start_time<target.end_time AND target.start_time<os.end_time) "
                             "ORDER BY c.lab_id,c.computer_id LIMIT 1 FOR UPDATE"));
@@ -117,7 +119,11 @@ void LabSyncService::runScheduler() {
                         if(code==1213) ++deadlocks;
                         cout << "Database " << (code==1213 ? "deadlock detected" : "lock timeout")
                              << " for request " << r.id << "; transaction rolled back.\n";
-                        if(attempt<2) continue;
+                        if(attempt<2) {
+                            // Bounded exponential backoff prevents immediate retry collisions.
+                            std::this_thread::sleep_for(std::chrono::milliseconds(100 * (attempt + 1)));
+                            continue;
+                        }
                     }
                     cout << "Request " << r.id << " failed: " << e.what() << "\n";
                     ++failures; break;
