@@ -15,6 +15,7 @@ import urllib.request
 import urllib.error
 import re
 import time
+from datetime import datetime, date as dt_date
 from pathlib import Path
 
 # Flask calls the C++ bridge; all scheduling logic stays in C++.
@@ -51,15 +52,20 @@ def process_automatic_expiries():
     1. Releases computers when an exam ends (exam_date + end_time <= CURRENT_TIMESTAMP):
        Transactionally transitions allocations & requests to 'COMPLETED',
        records release_reason = 'EXAM_COMPLETED' and released_at = NOW().
-    2. Enforces check-in deadline for reservations (exam_date + start_time + deadline < CURRENT_TIMESTAMP):
-       Confirmed no-shows transition to 'NO_SHOW',
-       records release_reason = 'NO_SHOW_EXPIRY' and released_at = NOW().
-    3. Triggers C++ scheduler if desks were freed by no-shows, so waiting queue gets placed.
-    Returns: {'completed_count': int, 'noshow_count': int}
+       This immediately frees the lab computers for future sessions.
+    2. Releases reservations for confirmed no-shows past check-in deadline
+       (exam_date + start_time + deadline < CURRENT_TIMESTAMP):
+       Confirmed no-shows transition to 'NO_SHOW', records release_reason = 'NO_SHOW_EXPIRY',
+       and released_at = NOW().
+    3. Expires unallocated requests ('READY' or 'WAITING') whose exam slot has already started or ended:
+       Transactionally transitions requests to 'EXPIRED' so stale requests never linger in queue.
+    4. Automatically invokes C++ scheduler if desks were freed, allocating any waiting requests.
+    Returns: {'completed_count': int, 'noshow_count': int, 'expired_count': int}
     """
     conn = get_db_connection()
     completed_count = 0
     noshow_count = 0
+    expired_count = 0
     try:
         with conn.cursor() as cur:
             # Step 1: Release computers when exam ends
@@ -123,20 +129,41 @@ def process_automatic_expiries():
                       AND status = 'ALLOCATED'
                 """, req_ids)
 
+            # Step 3: Expire unallocated requests (READY or WAITING) whose exam slot has already started or ended
+            cur.execute("""
+                SELECT r.request_id
+                FROM requests r
+                JOIN slots s ON s.slot_id = r.slot_id
+                JOIN exams e ON e.exam_id = s.exam_id
+                WHERE r.status IN ('READY', 'WAITING')
+                  AND TIMESTAMP(e.exam_date, s.start_time) <= CURRENT_TIMESTAMP
+                FOR UPDATE
+            """)
+            stale_reqs = cur.fetchall()
+            if stale_reqs:
+                stale_ids = [r['request_id'] for r in stale_reqs]
+                expired_count = len(stale_ids)
+                format_stale = ','.join(['%s'] * expired_count)
+                cur.execute(f"""
+                    UPDATE requests
+                    SET status = 'EXPIRED'
+                    WHERE request_id IN ({format_stale})
+                """, stale_ids)
+
         conn.commit()
 
-        # If any no-shows freed desks, automatically invoke scheduler to allocate waiting requests
-        if noshow_count > 0:
+        # If any desks were freed, automatically invoke scheduler to allocate waiting requests
+        if noshow_count > 0 or completed_count > 0:
             try:
                 run_cpp_scheduler()
             except Exception:
                 pass
 
-        return {'completed_count': completed_count, 'noshow_count': noshow_count}
+        return {'completed_count': completed_count, 'noshow_count': noshow_count, 'expired_count': expired_count}
     except Exception as e:
         conn.rollback()
         app.logger.warning("Automatic expiry processing error: %s", e)
-        return {'completed_count': 0, 'noshow_count': 0, 'error': str(e)}
+        return {'completed_count': 0, 'noshow_count': 0, 'expired_count': 0, 'error': str(e)}
     finally:
         conn.close()
 
@@ -310,6 +337,7 @@ def _chatbot_context(user_id, role='student'):
                     cur.execute("""SELECT e.exam_name, e.subject_code, e.exam_date, s.start_time, s.end_time, s.capacity,
                                        (SELECT COUNT(*) FROM allocations a WHERE a.slot_id=s.slot_id AND a.status IN ('ALLOCATED', 'CHECKED_IN')) allocated
                                 FROM exams e JOIN slots s ON s.exam_id=e.exam_id
+                                WHERE TIMESTAMP(e.exam_date, s.start_time) > CURRENT_TIMESTAMP
                                 ORDER BY e.exam_date ASC, s.start_time ASC LIMIT 100""")
                     exams = cur.fetchall()
                     cur.execute("""SELECT e.exam_name, e.subject_code, e.exam_date, s.start_time, s.end_time, r.status,
@@ -769,13 +797,14 @@ def student_dashboard():
             cur.execute("SELECT student_id, name, email FROM students WHERE student_id = %s", (sid,))
             student = cur.fetchone()
 
-            # 2. Fetch available exams with their slots
+            # 2. Fetch available exams with their slots (only upcoming slots that have not yet started)
             cur.execute("""
                 SELECT e.exam_id, e.exam_name, e.subject_code, e.exam_date, e.priority AS exam_priority,
                        s.slot_id, s.start_time, s.end_time, s.capacity,
                        (SELECT COUNT(*) FROM allocations a WHERE a.slot_id = s.slot_id AND a.status IN ('ALLOCATED', 'CHECKED_IN')) AS allocated_count
                 FROM exams e
                 JOIN slots s ON s.exam_id = e.exam_id
+                WHERE TIMESTAMP(e.exam_date, s.start_time) > CURRENT_TIMESTAMP
                 ORDER BY e.exam_date ASC, s.start_time ASC
             """)
             slots_data = cur.fetchall()
@@ -900,14 +929,21 @@ def book_slot():
         flash("Please select an exam slot to book.", "error")
         return redirect(url_for('student_dashboard'))
 
+    try:
+        process_automatic_expiries()
+    except Exception:
+        pass
+
     conn = get_db_connection()
 
     try:
         with conn.cursor() as cur:
-
-            # Step 1: Get exam details for selected slot
+            # Step 1: Get exam details and verify slot has not started or ended
             cur.execute("""
-                SELECT s.exam_id, e.priority
+                SELECT s.slot_id, s.exam_id, s.start_time, s.end_time, s.capacity,
+                       e.exam_name, e.subject_code, e.exam_date, e.priority,
+                       TIMESTAMPDIFF(SECOND, CURRENT_TIMESTAMP, TIMESTAMP(e.exam_date, s.start_time)) AS secs_until_start,
+                       TIMESTAMPDIFF(SECOND, CURRENT_TIMESTAMP, TIMESTAMP(e.exam_date, s.end_time)) AS secs_until_end
                 FROM slots s
                 JOIN exams e ON e.exam_id = s.exam_id
                 WHERE s.slot_id = %s
@@ -916,13 +952,21 @@ def book_slot():
             slot = cur.fetchone()
 
             if not slot:
-                flash("Selected slot does not exist.", "error")
+                flash("Selected exam slot does not exist.", "error")
+                return redirect(url_for('student_dashboard'))
+
+            # Reject if exam slot has already started or ended
+            if slot['secs_until_start'] is not None and slot['secs_until_start'] <= 0:
+                flash(
+                    f"Cannot book '{slot['exam_name']}': This exam slot has already started or ended ({slot['exam_date']} {slot['start_time']}).",
+                    "error"
+                )
                 return redirect(url_for('student_dashboard'))
 
             exam_id = slot['exam_id']
             priority = slot.get('priority', 2)
 
-            # Step 2: Prevent duplicate or completed exam bookings
+            # Step 2: Prevent duplicate or already completed exam bookings
             cur.execute("""
                 SELECT status
                 FROM requests
@@ -932,6 +976,7 @@ def book_slot():
                       'READY',
                       'WAITING',
                       'ALLOCATED',
+                      'CHECKED_IN',
                       'COMPLETED'
                   )
                 LIMIT 1
@@ -942,35 +987,61 @@ def book_slot():
             if existing:
                 if existing['status'] == 'COMPLETED':
                     flash(
-                        "You have already completed this exam. "
-                        "You cannot book it again.",
+                        "You have already completed this exam and cannot book it again.",
                         "error"
+                    )
+                elif existing['status'] in ('ALLOCATED', 'CHECKED_IN'):
+                    flash(
+                        "You already have an active desk allocation for this exam.",
+                        "warning"
                     )
                 else:
                     flash(
-                        "You have already booked this exam.",
+                        "You already have a booking request queued for this exam.",
                         "warning"
                     )
 
                 return redirect(url_for('student_dashboard'))
 
-            # Step 3: Create new booking request
+            # Step 3: Check remaining capacity for the slot
+            cur.execute("""
+                SELECT COUNT(*) AS total
+                FROM allocations
+                WHERE slot_id = %s AND status IN ('ALLOCATED', 'CHECKED_IN')
+            """, (slot_id,))
+            current_allocated = cur.fetchone()['total']
+
+            initial_status = 'WAITING' if current_allocated >= slot['capacity'] else 'READY'
+
+            # Step 4: Create new booking request
             cur.execute("""
                 INSERT INTO requests
                     (student_id, exam_id, slot_id, priority, status)
-                VALUES (%s, %s, %s, %s, 'READY')
-            """, (sid, exam_id, slot_id, priority))
+                VALUES (%s, %s, %s, %s, %s)
+            """, (sid, exam_id, slot_id, priority, initial_status))
 
             req_id = cur.lastrowid
 
         conn.commit()
 
-        flash(
-            f"Exam slot booked successfully "
-            f"(Request #{req_id})! "
-            "It is queued for desk allocation.",
-            "success"
-        )
+        # Step 5: Automatically trigger scheduler to allocate desk immediately if available
+        try:
+            run_cpp_scheduler()
+        except Exception:
+            pass
+
+        if initial_status == 'WAITING':
+            flash(
+                f"Booking for '{slot['exam_name']}' received (Request #{req_id})! "
+                "The slot is currently full, so you have been placed in the waiting queue.",
+                "warning"
+            )
+        else:
+            flash(
+                f"🎉 Exam slot for '{slot['exam_name']}' booked successfully (Request #{req_id})! "
+                "Desk allocation has been processed.",
+                "success"
+            )
 
     except Exception as e:
         conn.rollback()
@@ -1134,10 +1205,15 @@ def admin_dashboard():
             cur.execute("SELECT * FROM exams ORDER BY exam_date DESC")
             exams = cur.fetchall()
 
-            # Slots list
+            # Slots list with slot_status
             cur.execute("""
                 SELECT s.slot_id, s.exam_id, s.start_time, s.end_time, s.capacity,
                        e.exam_name, e.subject_code, e.exam_date,
+                       CASE
+                           WHEN CURRENT_TIMESTAMP > TIMESTAMP(e.exam_date, s.end_time) THEN 'ENDED'
+                           WHEN CURRENT_TIMESTAMP >= TIMESTAMP(e.exam_date, s.start_time) THEN 'IN_PROGRESS'
+                           ELSE 'UPCOMING'
+                       END AS slot_status,
                        (SELECT COUNT(*) FROM allocations a WHERE a.slot_id = s.slot_id AND a.status IN ('ALLOCATED', 'CHECKED_IN')) AS current_allocated
                 FROM slots s
                 JOIN exams e ON e.exam_id = s.exam_id
@@ -1218,6 +1294,9 @@ def admin_dashboard():
             """)
             registered_students = cur.fetchall()
 
+            cur.execute("SELECT COUNT(*) AS total FROM requests WHERE status = 'EXPIRED'")
+            expired_count = cur.fetchone()['total']
+
         stats = {
             "students": total_students,
             "exams": total_exams,
@@ -1229,7 +1308,8 @@ def admin_dashboard():
             "allocated": active_allocations,
             "checked_in": checked_in_count,
             "completed": completed_count,
-            "no_shows": noshow_count
+            "no_shows": noshow_count,
+            "expired": expired_count
         }
 
         return render_template(
@@ -1241,7 +1321,8 @@ def admin_dashboard():
             bookings=all_bookings,
             computers=all_computers,
             students=registered_students,
-            checkin_deadline_mins=getattr(Config, 'CHECKIN_DEADLINE_MINUTES', 15)
+            checkin_deadline_mins=getattr(Config, 'CHECKIN_DEADLINE_MINUTES', 15),
+            today=datetime.now().strftime('%Y-%m-%d')
         )
     finally:
         conn.close()
@@ -1254,10 +1335,28 @@ def add_exam():
     name = request.form.get('exam_name', '').strip()
     code = request.form.get('subject_code', '').strip()
     date = request.form.get('exam_date', '').strip()
-    priority = int(request.form.get('priority', 2))
+    priority_val = request.form.get('priority', '2')
 
     if not name or not code or not date:
         flash("Please provide exam name, subject code, and date.", "error")
+        return redirect(url_for('admin_dashboard'))
+
+    try:
+        priority = int(priority_val)
+        if priority < 1 or priority > 3:
+            priority = 2
+    except (ValueError, TypeError):
+        priority = 2
+
+    # Enforce that exam date cannot be in the past
+    try:
+        exam_dt = datetime.strptime(date, '%Y-%m-%d').date()
+        today = dt_date.today()
+        if exam_dt < today:
+            flash(f"Exam date cannot be in the past ({date}). Please choose today or a future date.", "error")
+            return redirect(url_for('admin_dashboard'))
+    except (ValueError, TypeError):
+        flash("Invalid exam date format. Please use YYYY-MM-DD.", "error")
         return redirect(url_for('admin_dashboard'))
 
     conn = get_db_connection()
@@ -1267,7 +1366,7 @@ def add_exam():
                 INSERT INTO exams (exam_name, subject_code, exam_date, priority)
                 VALUES (%s, %s, %s, %s)
             """, (name, code, date, priority))
-        flash(f"✅ Exam '{name}' added successfully!", "success")
+        flash(f"✅ Exam '{name}' ({code}) scheduled for {date} successfully!", "success")
     except Exception as e:
         flash(f"Failed to add exam: {str(e)}", "error")
     finally:
@@ -1281,20 +1380,41 @@ def add_slot():
     exam_id = request.form.get('exam_id')
     start_time = request.form.get('start_time', '').strip()
     end_time = request.form.get('end_time', '').strip()
-    capacity = int(request.form.get('capacity', 30))
+    capacity_val = request.form.get('capacity', '30')
+
+    try:
+        capacity = int(capacity_val)
+    except (ValueError, TypeError):
+        capacity = 0
 
     if not exam_id or not start_time or not end_time or capacity <= 0:
-        flash("Please provide valid exam, time, and positive capacity.", "error")
+        flash("Please provide valid exam, start/end times, and positive capacity.", "error")
+        return redirect(url_for('admin_dashboard'))
+
+    if start_time >= end_time:
+        flash("Slot end time must be after start time.", "error")
         return redirect(url_for('admin_dashboard'))
 
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
+            cur.execute("SELECT exam_id, exam_name, exam_date FROM exams WHERE exam_id = %s", (exam_id,))
+            exam = cur.fetchone()
+            if not exam:
+                flash("Selected exam does not exist.", "error")
+                return redirect(url_for('admin_dashboard'))
+
+            now = datetime.now()
+            exam_d = exam['exam_date']
+            if exam_d < now.date() or (exam_d == now.date() and str(end_time) <= now.strftime('%H:%M:%S')):
+                flash(f"Cannot create slot ({start_time} - {end_time}): This time slot has already passed for {exam_d}.", "error")
+                return redirect(url_for('admin_dashboard'))
+
             cur.execute("""
                 INSERT INTO slots (exam_id, start_time, end_time, capacity)
                 VALUES (%s, %s, %s, %s)
             """, (exam_id, start_time, end_time, capacity))
-        flash(f"✅ Slot ({start_time} - {end_time}) added successfully!", "success")
+        flash(f"✅ Slot ({start_time} - {end_time}) added to '{exam['exam_name']}' successfully!", "success")
     except Exception as e:
         flash(f"Failed to add slot: {str(e)}", "error")
     finally:
@@ -1517,7 +1637,8 @@ def admin_trigger_expiry():
     else:
         c = res.get('completed_count', 0)
         n = res.get('noshow_count', 0)
-        flash(f"⚡ Expiry sweep completed: {c} ended exam(s) released & marked COMPLETED, {n} no-show reservation(s) released.", "success")
+        x = res.get('expired_count', 0)
+        flash(f"⚡ Expiry sweep completed: {c} ended exam(s) freed & marked COMPLETED, {n} no-show reservation(s) released, {x} stale request(s) expired.", "success")
     return redirect(url_for('admin_dashboard'))
 
 
@@ -1619,6 +1740,13 @@ def complete_entire_slot(slot_id):
                 SET status = 'COMPLETED'
                 WHERE slot_id = %s AND status IN ('ALLOCATED', 'CHECKED_IN')
             """, (slot_id,))
+
+            # Also expire any requests for this slot that were still in waiting queue
+            cur.execute("""
+                UPDATE requests 
+                SET status = 'EXPIRED'
+                WHERE slot_id = %s AND status IN ('READY', 'WAITING')
+            """, (slot_id,))
         conn.commit()
         try:
             run_cpp_scheduler()
@@ -1637,6 +1765,10 @@ def complete_entire_slot(slot_id):
 # PC Availability API (for interactive live filter)
 @app.route('/api/pc-availability/<int:slot_id>')
 def api_pc_availability(slot_id):
+    try:
+        process_automatic_expiries()
+    except Exception:
+        pass
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:

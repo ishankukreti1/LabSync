@@ -204,6 +204,8 @@
                                 <span class="badge badge-purple">COMPLETED</span>
                             {% elif b.status == 'NO_SHOW' %}
                                 <span class="badge badge-danger">NO-SHOW</span>
+                            {% elif b.status == 'EXPIRED' %}
+                                <span class="badge badge-rose">EXPIRED</span>
                             {% else %}
                                 <span class="badge badge-neutral">CANCELLED</span>
                             {% endif %}
@@ -241,6 +243,8 @@
                                 <span class="text-muted text-sm">Completed & Released {% if b.release_reason %}({{ b.release_reason }}){% endif %}</span>
                             {% elif b.status == 'NO_SHOW' %}
                                 <span class="text-rose text-sm">Expired No-Show {% if b.release_reason %}({{ b.release_reason }}){% endif %}</span>
+                            {% elif b.status == 'EXPIRED' %}
+                                <span class="text-rose text-sm">Expired (Exam started)</span>
                             {% elif b.status == 'CANCELLED' %}
                                 <span class="text-muted text-sm">Cancelled {% if b.release_reason %}({{ b.release_reason }}){% endif %}</span>
                             {% else %}
@@ -276,7 +280,8 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Exam Date</label>
-                        <input type="date" name="exam_date" class="form-input" required>
+                        <input type="date" name="exam_date" id="admin_exam_date" class="form-input" min="{{ today }}" required>
+                        <small class="text-muted text-xs">Exams cannot be scheduled on past dates (min: {{ today }}).</small>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Default Priority (1-3)</label>
@@ -299,7 +304,7 @@
                         <label class="form-label">Select Exam</label>
                         <select name="exam_id" class="form-input" required>
                             {% for e in exams %}
-                                <option value="{{ e.exam_id }}">{{ e.exam_name }} ({{ e.subject_code }})</option>
+                                <option value="{{ e.exam_id }}">{{ e.exam_name }} ({{ e.subject_code }} &bull; {{ e.exam_date }})</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -326,8 +331,9 @@
                 <table class="custom-table">
                     <thead>
                         <tr>
-                            <th>Exam</th>
+                            <th>Exam & Subject</th>
                             <th>Time</th>
+                            <th>Slot Status</th>
                             <th>Allocated / Capacity</th>
                             <th>Slot Action</th>
                         </tr>
@@ -335,13 +341,29 @@
                     <tbody>
                         {% for s in slots %}
                         <tr>
-                            <td><strong>{{ s.exam_name }}</strong> ({{ s.subject_code }})</td>
+                            <td>
+                                <strong>{{ s.exam_name }}</strong> ({{ s.subject_code }})
+                                <span class="text-muted block text-sm">&bull; {{ s.exam_date }}</span>
+                            </td>
                             <td>{{ s.start_time }} - {{ s.end_time }}</td>
+                            <td>
+                                {% if s.slot_status == 'UPCOMING' %}
+                                    <span class="badge badge-success">Upcoming</span>
+                                {% elif s.slot_status == 'IN_PROGRESS' %}
+                                    <span class="badge badge-cyan">In Progress</span>
+                                {% else %}
+                                    <span class="badge badge-neutral">Ended</span>
+                                {% endif %}
+                            </td>
                             <td>{{ s.current_allocated }} / {{ s.capacity }}</td>
                             <td>
-                                <form method="POST" action="{{ url_for('complete_entire_slot', slot_id=s.slot_id) }}" onsubmit="return confirm('Complete all allocations for this entire slot? This will free all PCs.');">
-                                    <button type="submit" class="btn btn-outline-purple btn-sm">Complete Entire Slot</button>
+                                {% if s.current_allocated > 0 %}
+                                <form method="POST" action="{{ url_for('complete_entire_slot', slot_id=s.slot_id) }}" onsubmit="return confirm('Complete all allocations for this entire slot? This will free all {{ s.current_allocated }} desk(s).');">
+                                    <button type="submit" class="btn btn-outline-purple btn-sm">Free Desks (Complete)</button>
                                 </form>
+                                {% else %}
+                                    <span class="text-muted text-sm">All Desks Free</span>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
